@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://backend:4000"
+      NEXT_PUBLIC_SUPABASE_URL: "https://<ton-project>.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "<cle-anon>"
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      SUPABASE_URL: "https://<ton-project>.supabase.co"
+      SUPABASE_KEY: "<cle-service-role>"
+      JWT_SECRET: "supersecretkey"
+      NODE_ENV: development
+
+  worker:
+    build: ./data-worker
+    ports:
+      - "5000:5000"
+    environment:
+      WORKER_API_KEY: "<cle-secrete-worker>"
