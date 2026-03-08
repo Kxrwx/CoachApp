@@ -5,15 +5,16 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-  "dev": "nodemon src/index.ts",
-  "build": "tsc",
-  "start": "node dist/index.js",
-  "lint": "eslint . --ext .ts"
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint . --ext .ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@prisma/client": "6.19",
     "@supabase/supabase-js": "^2.98.0",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
@@ -38,6 +39,7 @@
     "eslint": "^10.0.3",
     "nodemon": "^3.1.14",
     "prettier": "^3.8.1",
+    "prisma": "6.19",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

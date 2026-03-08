@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  mfaEnabled   Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  devices      Device[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId  String?
+  device    Device?  @relation(fields: [deviceId], references: [id])
+
+  tokenHash String   @unique
+
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+  lastSeen  DateTime @default(now())
+
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+}
+
+model Device {
+  id              String   @id @default(uuid())
+
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fingerprintHash String
+
+  deviceName      String?
+
+  trusted         Boolean  @default(false)
+  trustedUntil    DateTime?
+
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+
+  sessions        Session[]
+}
