@@ -17,7 +17,17 @@ const passwordRegex =
 
 // -----------------------
 // Schemas Zod
-// -----------------------
+// ----------------------
+export const UserSignIn = z.object({
+  email : z.string().regex(emailRegex, "Email invalide"),
+  password : z.string().regex(passwordRegex, "Mot de passe invalide : min 12 caractères, majuscule, minuscule, chiffre, symbole"),
+  mfaEanble : z.boolean().optional()
+})
+
+export const UserSignUp = z.object({
+  email : z.string(),
+  password : z.string()
+})
 
 export const UserSchema = z.object({
   id: z.string(),
