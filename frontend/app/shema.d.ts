@@ -22,7 +22,7 @@ const passwordRegex =
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().regex(emailRegex, "Email invalide"),
-  passwordHash: z.string(), // côté frontend, on ne manipule jamais le hash normalement
+  passwordHash: z.string(),
   mfaEnabled: z.boolean(),
 })
 
