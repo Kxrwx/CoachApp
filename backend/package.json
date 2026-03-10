@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.ts",
+    "dev": "nodemon --exec tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts"
@@ -17,7 +17,7 @@
     "@prisma/client": "6.19",
     "@supabase/supabase-js": "^2.98.0",
     "axios": "^1.13.6",
-    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
@@ -41,6 +41,7 @@
     "prettier": "^3.8.1",
     "prisma": "6.19",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

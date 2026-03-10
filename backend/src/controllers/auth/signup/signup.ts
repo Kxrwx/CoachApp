@@ -1,24 +1,24 @@
 import express from "express"
-import { signup } from "../../models/auth/sign"
-import bcrypt from "bcrypt"
-import { session } from "../../models/auth/session"
-import prisma from "../../utils/prisma"
+import { signup } from "../../../models/auth/sign"
+import bcrypt from "bcryptjs"
+import { session } from "../../../models/auth/session"
+import prisma from "../../../utils/prisma.js"
 import {v4} from "uuid"
 
 const saltRound = 12
 
+const router = express.Router()
 
-const app = express()
-app.use(express.json())
-
-app.post("/src/controllers/signup", async (req, res) => {
+router.post("/signup", async (req, res) => {
     try {
-        const {email, password, mfa, deviceId} = req.body
-        const password_hash = await bcrypt.hash(password, saltRound)
-        const reponse = await signup(email, password_hash, mfa)
-        const user  = await prisma.user.findUnique({
-            where : {email : email},
+        const {emailSign, passwordSign, mfaSign, deviceId} = req.body
+        const mfa = mfaSign === true || mfaSign === "true"
+        const password_hash = await bcrypt.hash(passwordSign, saltRound)
+        const reponse = await signup(emailSign, password_hash, mfa) 
+        const user  = await prisma.users.findUnique({
+            where : {email : emailSign},
         })
+        
         if(!user) {res.status(400).json({error : "Erreur session"})}
         else { 
             const ip = (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for']) ?? req.socket.remoteAddress ?? "";
@@ -31,11 +31,15 @@ app.post("/src/controllers/signup", async (req, res) => {
                 sameSite: "lax",
                 maxAge: 2 * 60 * 60 * 1000, 
             });
-            res.status(200).json(reponse)
+            const { passwordHash, ...safeUser } = user; // On enleve le password
+            res.status(200).json(safeUser)
         }
     }
     catch(error){
+        console.error("Erreur détaillée du Signup :", error);
         res.status(500).json({error : "Serveur Error"})
     }
 }
 )
+
+export default router

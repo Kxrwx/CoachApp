@@ -5,9 +5,10 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-model User {
+model Users {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
@@ -16,15 +17,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sessions     Session[]
+  sessions     Sessions[]
   devices      Device[]
 }
 
-model Session {
+model Sessions {
   id        String   @id @default(uuid())
 
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   deviceId  String?
   device    Device?  @relation(fields: [deviceId], references: [id])
@@ -45,7 +46,7 @@ model Device {
   id              String   @id @default(uuid())
 
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   fingerprintHash String
 
@@ -57,5 +58,5 @@ model Device {
   firstSeenAt     DateTime @default(now())
   lastSeenAt      DateTime @default(now())
 
-  sessions        Session[]
+  sessions        Sessions[]
 }

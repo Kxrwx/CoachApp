@@ -2,23 +2,22 @@
 import { NextResponse } from "next/server";
 import axios from "axios"
 
-// Requete qui permet d'envoyé les données d'inscription au back
+// Requete qui permet d'envoyé les données de connexion au back
 
-export default async function POST(req: Request) {
+export async function POST(req: Request) {
     const backend = process.env.BACKEND_URL
     
     try {
 
 
-        const {emailSign, passwordSign, mfaSign} = await req.json(); //Recup des datas du formulaire
+        const {emailSign, passwordSign, deviceId} = await req.json(); //Recup des datas du formulaire
 
         if (!emailSign || !passwordSign) return NextResponse.json({error : "Données manquante"}, {status : 400})
 
-        const mfa = mfaSign ?? false;
 
-        const body = {emailSign, passwordSign, mfa}
+        const body = {emailSign, passwordSign, deviceId}
 
-        const response = await axios.post( `${backend}/src/controllers/signin`, body) //Envoi des datas
+        const response = await axios.post( `${backend}/auth/signin`, body) //Envoi des datas
 
         return NextResponse.json(response.data, { status: response.status }); //Réponse du back + propoagation d'erreur vers le front
 
