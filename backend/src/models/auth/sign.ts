@@ -4,13 +4,12 @@ import { id } from "zod/v4/locales";
 
 
 
-export function signin(email : string, password : string){
+export async function signin(email : string){
 
 
     const req = prisma.user.findUnique(
         {
-            where : {email : email, passwordHash : password}, 
-            select : {id : true, email : true, mfaEnabled : true}
+            where : {email : email}, 
         }
         
     )
