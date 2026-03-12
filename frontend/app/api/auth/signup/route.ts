@@ -10,8 +10,8 @@ export async function POST(req: Request) {
     try {
         const headersList = await headers()
 
-        const ip = headersList.get("x-forwarded-for")
-        
+        const ip = headersList.get("x-forwarded-for")?.split(",")[0]
+
         const userAgent = headersList.get('user-agent')
 
         const {emailSign, passwordSign, mfaSign, deviceId} = await req.json(); //Recup des datas du formulaire

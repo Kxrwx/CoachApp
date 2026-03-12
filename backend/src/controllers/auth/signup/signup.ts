@@ -2,8 +2,7 @@ import express from "express"
 import { signup } from "../../../models/auth/sign"
 import bcrypt from "bcryptjs"
 import { session } from "../../../models/auth/session"
-import prisma from "../../../utils/prisma.js"
-import {v4} from "uuid"
+import crypto from "crypto"
 
 const saltRound = 12
 
@@ -14,25 +13,22 @@ router.post("/signup", async (req, res) => {
         const {emailSign, passwordSign, mfaSign, deviceId, ip, userAgent} = req.body
         const mfa = mfaSign === true || mfaSign === "true"
         const password_hash = await bcrypt.hash(passwordSign, saltRound)
-        const reponse = await signup(emailSign, password_hash, mfa) 
-        const user  = await prisma.users.findUnique({
-            where : {email : emailSign},
-        })
+        const user = await signup(emailSign, password_hash, mfa) 
         
-        if(!user) {res.status(400).json({error : "Erreur session"})}
-        else { 
+        
+        if(!user) {return res.status(400).json({error : "Erreur session"})}
             
-            const token = v4()
-            await session(user.id, deviceId, token, ip, userAgent)
-            res.cookie("session_token", token, {
-                httpOnly: true, 
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                maxAge: 2 * 60 * 60 * 1000, 
-            });
-            const { passwordHash, ...safeUser } = user; // On enleve le password
-            res.status(200).json(safeUser)
-        }
+        const token = crypto.randomBytes(32).toString("hex")
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex")
+        await session(user.id, deviceId, tokenHash, ip, userAgent)
+        res.cookie("session_token", token, {
+            httpOnly: true, 
+            secure: true,
+            sameSite: "none",
+            maxAge: 2 * 60 * 60 * 1000, 
+        });
+        const { passwordHash, ...safeUser } = user; // On enleve le password
+        return res.status(200).json(safeUser)
     }
     catch(error){
         console.error("Erreur détaillée du Signup :", error);

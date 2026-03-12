@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
         const headersList = await headers()
         
-        const ip = headersList.get("x-forwarded-for")
+        const ip = headersList.get("x-forwarded-for")?.split(",")[0]
                 
         const userAgent = headersList.get('user-agent')
 

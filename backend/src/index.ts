@@ -5,6 +5,7 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import signup from "./controllers/auth/signup/signup";
 import signin from "./controllers/auth/signin/signin"
+import Secure from "./middleware/Secure"
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 //Router 
 app.use("/auth", signup)
 app.use("/auth", signin)
+app.use(Secure)
 
 // Test route
 app.get("/", (req, res) => {
