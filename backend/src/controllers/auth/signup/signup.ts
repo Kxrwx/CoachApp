@@ -11,7 +11,7 @@ const router = express.Router()
 
 router.post("/signup", async (req, res) => {
     try {
-        const {emailSign, passwordSign, mfaSign, deviceId} = req.body
+        const {emailSign, passwordSign, mfaSign, deviceId, ip, userAgent} = req.body
         const mfa = mfaSign === true || mfaSign === "true"
         const password_hash = await bcrypt.hash(passwordSign, saltRound)
         const reponse = await signup(emailSign, password_hash, mfa) 
@@ -21,8 +21,7 @@ router.post("/signup", async (req, res) => {
         
         if(!user) {res.status(400).json({error : "Erreur session"})}
         else { 
-            const ip = (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for']) ?? req.socket.remoteAddress ?? "";
-            const userAgent = req.headers['user-agent'] ?? "";
+            
             const token = v4()
             await session(user.id, deviceId, token, ip, userAgent)
             res.cookie("session_token", token, {

@@ -8,9 +8,7 @@ const router = express.Router()
 
 router.post("/signin", async (req, res) => {
     try {
-        const {emailSign, passwordSign, deviceId} = req.body
-        const ip = (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for']) ?? req.socket.remoteAddress ?? "";
-        const userAgent = req.headers['user-agent'] ?? "";
+        const {emailSign, passwordSign, deviceId, ip, userAgent} = req.body
         const user = await signin(emailSign)
         if(!user) {
             res.status(201).json({error: "Erreur login"})
