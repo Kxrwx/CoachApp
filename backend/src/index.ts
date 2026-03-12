@@ -4,8 +4,9 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import signup from "./controllers/auth/signup/signup";
-import signin from "./controllers/auth/signin/signin"
-import Secure from "./middleware/Secure"
+import signin from "./controllers/auth/signin/signin";
+import Secure from "./middleware/Secure";
+import authRouter from "./routes/auth.router"
 
 dotenv.config();
 
@@ -16,8 +17,10 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 //Router 
-app.use("/auth", signup)
-app.use("/auth", signin)
+//Route public 
+app.use("/auth", authRouter)
+
+//Middleware
 app.use(Secure)
 
 // Test route

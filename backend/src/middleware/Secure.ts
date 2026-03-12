@@ -1,16 +1,21 @@
-import express from "express";
+
 import { getSession } from "../models/auth/session";
 import prisma from "../utils/prisma";
+import type { NextFunction, Request, Response } from "express"; 
 
-const route = express.Router()
+interface AuthRequest extends Request {
+  userId?: string;
+}
 
-route.get("/user/:id", async (req, res) => {
+
+
+async function authMiddleware(req: AuthRequest,res: Response,
+  next: NextFunction
+) {
     try {
         const token = req.cookies.session_token
         const session = await getSession(token)
-        if(session?.userId !== req.params.id){
-            return res.status(403).json({error: "Accès interdit"})
-        }
+        
         if(!session || !session.userId){
             return res.status(401).json({error : "Non autorisé"})
         }
@@ -18,23 +23,21 @@ route.get("/user/:id", async (req, res) => {
         where : {id : session.userId},
         select : {id : true}
         })
-        if(!user) res.status(401).json({error : "Non autorisé aucun user attribué à la session"})
-        else {
-            if(session.expiresAt < new Date() || session.userId != user?.id || session.revoked == true){
+        if(!user) return res.status(401).json({error : "Non autorisé aucun user attribué à la session"})
+            if(session.expiresAt < new Date() || session.revoked){
                 return res.status(401).json({error : "Session non conforme"})
             }
-            else{
-                return res.status(200).json({value : true})
-            }
-        }
+            next()
+            
+        
         
     }
     catch(error) {
-        return res.status(400).json({error : "Erreur Serveur"})
+        next(error)
     }
     
     
     
-})
+}
 
-export default route
+export default authMiddleware;
