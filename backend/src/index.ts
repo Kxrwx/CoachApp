@@ -20,7 +20,7 @@ app.use("/auth", signin)
 
 // Test route
 app.get("/", (req, res) => {
-  res.send("Backend Node.js fonctionne ✅");
+  res.send("Backend Node.js fonctionne");
 });
 
 const PORT = process.env.PORT || 4000;

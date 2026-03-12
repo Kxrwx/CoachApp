@@ -9,3 +9,12 @@ export async function session(userId : string, deviceId : string, token : string
     })
     return req
 }
+
+export async function getSession(token : string){
+    const req = prisma.sessions.findUnique(
+        {
+            where : {tokenHash : token}
+        }
+    )
+    return req
+}

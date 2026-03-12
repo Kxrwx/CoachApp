@@ -6,7 +6,6 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { getOrGenerateDeviceId } from "@/lib/bib";
 
-
 export default function AuthPage() {
     const [signIn, setSignIn] = useState<boolean>(true);
     const[emailSign, setEmailSign] = useState("")
