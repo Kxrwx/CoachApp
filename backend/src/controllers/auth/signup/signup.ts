@@ -1,4 +1,4 @@
-import express from "express"
+import type { Request, Response } from "express"; 
 import { signup } from "../../../models/auth/sign"
 import bcrypt from "bcryptjs"
 import { session } from "../../../models/auth/session"
@@ -6,15 +6,12 @@ import crypto from "crypto"
 
 const saltRound = 12
 
-const router = express.Router()
-
-router.post("/signup", async (req, res) => {
+ export default async function signUp(req : Request, res : Response) {
     try {
         const {emailSign, passwordSign, mfaSign, deviceId, ip, userAgent} = req.body
         const mfa = mfaSign === true || mfaSign === "true"
         const password_hash = await bcrypt.hash(passwordSign, saltRound)
         const user = await signup(emailSign, password_hash, mfa) 
-        
         
         if(!user) {return res.status(400).json({error : "Erreur session"})}
             
@@ -23,8 +20,8 @@ router.post("/signup", async (req, res) => {
         await session(user.id, deviceId, tokenHash, ip, userAgent)
         res.cookie("session_token", token, {
             httpOnly: true, 
-            secure: true,
-            sameSite: "none",
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             maxAge: 2 * 60 * 60 * 1000, 
         });
         const { passwordHash, ...safeUser } = user; // On enleve le password
@@ -35,6 +32,3 @@ router.post("/signup", async (req, res) => {
         res.status(500).json({error : "Serveur Error"})
     }
 }
-)
-
-export default router

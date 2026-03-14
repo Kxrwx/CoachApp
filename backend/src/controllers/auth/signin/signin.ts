@@ -1,13 +1,12 @@
-import express, { response, Router } from "express"
+import type { Request, Response } from "express"; 
 import { signin } from "../../../models/auth/sign"
 import bcrypt from "bcryptjs"
 import { session } from "../../../models/auth/session"
 import crypto from "crypto"
 
 
-const router = express.Router()
-
-router.post("/signin", async (req, res) => {
+export default async function signIn(req : Request, res : Response) {
+    
     try {
         const {emailSign, passwordSign, deviceId, ip, userAgent} = req.body
         const user = await signin(emailSign)
@@ -21,8 +20,8 @@ router.post("/signin", async (req, res) => {
         await session(user.id, deviceId, tokenHash, ip, userAgent )
         res.cookie("session_token", token, {
             httpOnly: true, 
-            secure: true,
-            sameSite: "none",
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             maxAge: 2 * 60 * 60 * 1000, 
             })
         const {passwordHash, ...safeUser} = user // On enleve le password
@@ -33,6 +32,4 @@ router.post("/signin", async (req, res) => {
         return res.status(500).json({error : "Serveur Error"})
     }
 }
-)
 
-export default router

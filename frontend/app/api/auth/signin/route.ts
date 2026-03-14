@@ -21,9 +21,20 @@ export async function POST(req: Request) {
 
         const body = {emailSign, passwordSign, deviceId, ip, userAgent}
 
-        const response = await axios.post( `${backend}/auth/signin`, body) //Envoi des datas
+        const response = await axios.post(`${backend}/auth/signin`, body)
 
-        return NextResponse.json(response.data, { status: response.status }); //Réponse du back + propoagation d'erreur vers le front
+        const res = NextResponse.json(response.data, { status: response.status })
+
+        const cookies = response.headers["set-cookie"]
+
+        if (cookies) {
+            if (Array.isArray(cookies)) {
+                cookies.forEach((c) => res.headers.append("set-cookie", c))
+            } else {
+                res.headers.set("set-cookie", cookies)
+            }
+        }
+        return res
 
     }
     catch(err){

@@ -1,13 +1,16 @@
 import prisma from "../../utils/prisma";
 import { addHours } from "date-fns";
 import crypto from "crypto"
+import { sanitizeIP } from "../../utils/bib";
 
 
 export async function session(userId : string, deviceId : string, token : string, ip: string, userAgent : string) {
     const expireAt = addHours(new Date, 2)
+    const IP = sanitizeIP(ip)
     const req = prisma.sessions.create({
-        data : {userId : userId, deviceId : deviceId, tokenHash : token, ip : ip, userAgent : userAgent, expiresAt : expireAt}
+        data : {userId : userId, deviceId : deviceId, tokenHash : token, ip : IP, userAgent : userAgent, expiresAt : expireAt}
     })
+    console.log("IP envoyée à Prisma:", ip);
     return req
 }
 

@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
-import {UserSignIn} from "../shema"
-import { UserSignUp } from "../shema";
+import {UserSignIn} from "../../lib/shema"
+import { UserSignUp } from "../../lib/shema";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { getOrGenerateDeviceId } from "@/lib/bib";
@@ -21,7 +21,6 @@ export default function AuthPage() {
         const format = UserSignIn.safeParse({
             email: emailSign,
             password: passwordSign,
-            mfa: mfaSign
         });
 
         if (!format.success) {
@@ -69,9 +68,9 @@ export default function AuthPage() {
 
     return (
             <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-  <div className="sm:mx-auto sm:w-full sm:max-w-md">
-    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-      {signIn ? "Connexion" : "Créer un compte"}
+              <div className="sm:mx-auto sm:w-full sm:max-w-md">
+                <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                  {signIn ? "Connexion" : "Créer un compte"}
     </h2>
   </div>
 

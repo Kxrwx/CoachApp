@@ -3,16 +3,18 @@ import { getSession } from "../models/auth/session";
 import prisma from "../utils/prisma";
 import type { NextFunction, Request, Response } from "express"; 
 
-interface AuthRequest extends Request {
-  userId?: string;
+export interface AuthRequest extends Request {
+  user?: {
+    id: string
+  }
 }
-
-
 
 async function authMiddleware(req: AuthRequest,res: Response,
   next: NextFunction
 ) {
+    console.log('Middlaware Node')
     try {
+        if (req.path.startsWith("/auth")) return next();
         const token = req.cookies.session_token
         const session = await getSession(token)
         
@@ -27,6 +29,7 @@ async function authMiddleware(req: AuthRequest,res: Response,
             if(session.expiresAt < new Date() || session.revoked){
                 return res.status(401).json({error : "Session non conforme"})
             }
+            req.user = user
             next()
             
         
