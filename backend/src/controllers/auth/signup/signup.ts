@@ -3,12 +3,19 @@ import { signup } from "../../../models/auth/sign"
 import bcrypt from "bcryptjs"
 import { session } from "../../../models/auth/session"
 import crypto from "crypto"
+import { UserSignUp } from "../../../services/shema";
 
 const saltRound = 12
 
  export default async function signUp(req : Request, res : Response) {
     try {
         const {emailSign, passwordSign, mfaSign, deviceId, ip, userAgent} = req.body
+        const format = UserSignUp.safeParse({
+            email : emailSign,
+            password : passwordSign,
+
+        })
+        if(!format.success) return res.status(400).json({error : "Erreur Format Back", detail : format.error})
         const mfa = mfaSign === true || mfaSign === "true"
         const password_hash = await bcrypt.hash(passwordSign, saltRound)
         const user = await signup(emailSign, password_hash, mfa) 

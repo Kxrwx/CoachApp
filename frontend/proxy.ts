@@ -16,7 +16,7 @@ export async function proxy(req: NextRequest) {
     if(!token) {
         return NextResponse.redirect(new URL("/auth", req.url))
     }
-    const res = await fetch(`${process.env.BACKEND_URL}/me`, {
+    const res = await fetch(`${process.env.BACKEND_URL}/authorized`, {
         headers: { Cookie: `session_token=${token}` },
     });
     if (!res.ok) {
