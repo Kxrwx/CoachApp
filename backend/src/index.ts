@@ -6,12 +6,13 @@ import dotenv from "dotenv";
 import Secure from "./middleware/Secure";
 import authRouter from "./routes/auth.router"
 import cookieParser from "cookie-parser"
-import authorized from "./controllers/me/authorized"
+import authorized from "./controllers/me/authorized/authorized"
+import logout from "./controllers/me/logout/logout"
 import rateLimit from "express-rate-limit";
 
 const authLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, 
-  max: 5,
+  max: 35,
   message: { error: "Trop de tentatives, réessayez plus tard" },
   standardHeaders: true, 
   legacyHeaders: false,  
@@ -45,6 +46,8 @@ app.use(Secure)
 
 //Route protégé
 app.use("/authorized", authorized)
+app.use('/logout', logout)
+
 
 
 

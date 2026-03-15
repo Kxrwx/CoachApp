@@ -23,3 +23,24 @@ export async function getSession(token : string){
     )
     return req
 }
+
+export async function updateRevokedSession(userId:string) {
+    const req = await prisma.sessions.updateMany(
+        {
+            where : {userId},
+            data : { revoked : true }
+        }
+    )
+    return req
+}
+
+export async function updateRevokedSessionToken(token:string) {
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const req = await prisma.sessions.update(
+        {
+            where : {tokenHash},
+            data : { revoked : true }
+        }
+    )
+    return req
+}

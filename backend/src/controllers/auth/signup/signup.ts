@@ -30,8 +30,9 @@ const saltRound = 12
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             maxAge: 2 * 60 * 60 * 1000, 
+            domain : process.env.FRONT_URL
         });
-        const { passwordHash, ...safeUser } = user; // On enleve le password
+        const { passwordHash, ...safeUser } = user; 
         return res.status(200).json(safeUser)
     }
     catch(error){

@@ -12,6 +12,8 @@ async function authMiddleware(req: AuthRequest,res: Response,
   next: NextFunction
 ) {
     console.log('Middlaware Node')
+    console.log(req.headers.cookie)
+    console.log(req.cookies)
     try {
         
         const token = req.cookies.session_token

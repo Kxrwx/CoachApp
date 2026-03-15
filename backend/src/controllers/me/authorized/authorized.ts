@@ -1,6 +1,6 @@
 
 import express from "express"
-import type {AuthRequest}  from "../../middleware/Secure"
+import type {AuthRequest}  from "../../../middleware/Secure"
 
 const route = express.Router()
 
