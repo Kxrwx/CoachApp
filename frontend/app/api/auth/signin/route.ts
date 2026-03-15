@@ -37,8 +37,18 @@ export async function POST(req: Request) {
         return res
 
     }
-    catch(err){
-        return NextResponse.json({error : "Error request"}, {status : 500});
+    catch(err: unknown) {
+    let message = "Error request";
+    let status = 500;
+
+    if (axios.isAxiosError(err) && err.response) {
+        message = err.response.data?.error || "Error request";
+        status = err.response.status;
+    } else if (err instanceof Error) {
+        message = err.message;
     }
+
+    return NextResponse.json({ error: message, status }, { status });
+}
 
 }

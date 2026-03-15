@@ -21,7 +21,23 @@ export async function GET() {
 
         return NextResponse.json(response.data, { status: response.status })
 
-    } catch (err) {
-        return NextResponse.json({ error: "Error request" }, { status: 500 })
+    } 
+    
+    catch (err: unknown) {
+    let message = "Erreur inconnue";
+    let status = 500;
+
+    if (axios.isAxiosError(err)) {
+        if (err.response?.data?.error) {
+            message = err.response.data.error;
+            status = err.response.status;
+        } else if (err.message) {
+            message = err.message;
+        }
+    } else if (err instanceof Error) {
+        message = err.message;
     }
+
+    return NextResponse.json({ error: message }, { status });
+}
 }

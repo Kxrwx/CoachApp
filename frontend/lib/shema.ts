@@ -24,8 +24,8 @@ export const UserSignIn = z.object({
 })
 
 export const UserSignUp = z.object({
-  email : z.string(),
-  password : z.string()
+  email : z.string().regex(emailRegex, "Email invalide"),
+  password : z.string().regex(passwordRegex, "Mot de passe invalide : min 12 caractères, majuscule, minuscule, chiffre, symbole"),
 })
 
 export const UserSchema = z.object({

@@ -11,6 +11,7 @@ export default function AuthPage() {
     const[emailSign, setEmailSign] = useState("")
     const[passwordSign, setPasswordSign] = useState("")
     const[mfaSign, setMfaSign] = useState("")
+    const [errors, setErrors] = useState<string[]>([]);
     const router = useRouter()
 
     async function handleSubmit(e: React.FormEvent) {
@@ -24,8 +25,8 @@ export default function AuthPage() {
         });
 
         if (!format.success) {
-            alert("Erreur de format");
-            return;
+          setErrors(Object.values(format.error.flatten().fieldErrors).flat().filter(Boolean));
+          return;
         }
 
         try {
@@ -35,9 +36,20 @@ export default function AuthPage() {
                 deviceId
             });
             if (reponse) return router.replace("/");
-        } catch (err) {
-            alert("Erreur connexion");
+        } 
+        catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+        if (err.response?.data?.error) {
+            setErrors([err.response.data.error]);
+        } else {
+            setErrors([err.message]);
         }
+    } else if (err instanceof Error) {
+        setErrors([err.message]);
+    } else {
+        setErrors(["Erreur inconnue"]);
+    }
+}
     } 
     else { 
         const format = UserSignUp.safeParse({
@@ -46,8 +58,8 @@ export default function AuthPage() {
         });
 
         if (!format.success) {
-            alert("Erreur de format inscription");
-            return;
+          setErrors(Object.values(format.error.flatten().fieldErrors).flat().filter(Boolean));
+          return;
         }
 
         try {
@@ -57,11 +69,23 @@ export default function AuthPage() {
                 mfaSign,
                 deviceId
             });
+            if(reponse.status == 401) setErrors(["Erreur login"])
             alert("Compte créé !");
             if (reponse) return router.replace("/");
-        } catch (err) {
-            alert("Erreur inscription");
         }
+         catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+        if (err.response?.data?.error) {
+            setErrors([err.response.data.error]);
+        } else {
+            setErrors([err.message]);
+        }
+    } else if (err instanceof Error) {
+        setErrors([err.message]);
+    } else {
+        setErrors(["Erreur inconnue"]);
+    }
+}
     }
 }
 
@@ -119,6 +143,7 @@ export default function AuthPage() {
         >
           {signIn ? "Se connecter" : "S'inscrire"}
         </button>
+        
       </form>
 
       <div className="mt-6">
@@ -137,6 +162,16 @@ export default function AuthPage() {
         >
           {signIn ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
         </button>
+        {errors && errors.length > 0 && (
+          <div className="mt-2">
+            {errors.map((err, i) => (
+              <span key={i} className="text-red-500 text-sm block">
+              {err}
+              </span>
+              ))}
+          </div>
+          )}
+
       </div>
     </div>
   </div>
