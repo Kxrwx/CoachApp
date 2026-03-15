@@ -6,7 +6,7 @@ import { headers } from 'next/headers'
 //requete de login au back
 export async function POST(req: Request) {
     const backend = process.env.BACKEND_URL
-      
+    
     try {
         const headersList = await headers()
 

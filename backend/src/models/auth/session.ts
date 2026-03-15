@@ -1,5 +1,5 @@
 import prisma from "../../utils/prisma";
-import { addHours } from "date-fns";
+import { addHours, lastDayOfISOWeek } from "date-fns";
 import crypto from "crypto"
 import { sanitizeIP } from "../../utils/bib";
 
@@ -43,4 +43,15 @@ export async function updateRevokedSessionToken(token:string) {
         }
     )
     return req
+}
+
+export async function updateLastSeenSession(id:string) {
+    const req = await prisma.sessions.update(
+        {
+            where : {id : id, revoked : false},
+            data : {lastSeen : new Date()}
+        }
+    )
+    return req
+    
 }
