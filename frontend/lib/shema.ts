@@ -31,8 +31,9 @@ export const UserSignUp = z.object({
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().regex(emailRegex, "Email invalide"),
-  passwordHash: z.string(),
   mfaEnabled: z.boolean(),
+  createdAt : z.date(),
+  updatedAt : z.date()
 })
 
 export const PasswordSchema = z
@@ -70,7 +71,7 @@ export const DeviceSchema = z.object({
 // Types TypeScript
 // -----------------------
 
-export type User = z.infer<typeof UserSchema>
+export type User = z.infer<typeof UserSchema>;
 export type Password = z.infer<typeof PasswordSchema>
 export type Session = z.infer<typeof SessionSchema>
 export type Device = z.infer<typeof DeviceSchema>

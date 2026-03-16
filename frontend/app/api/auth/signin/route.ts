@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import axios from "axios"
 import { headers } from 'next/headers'
 
-// Requete qui permet d'envoyé les données de connexion au back
 export async function POST(req: Request) {
     const backend = process.env.BACKEND_URL
     
@@ -15,7 +14,7 @@ export async function POST(req: Request) {
                 
         const userAgent = headersList.get('user-agent')
 
-        const {emailSign, passwordSign, deviceId} = await req.json(); //Recup des datas du formulaire
+        const {emailSign, passwordSign, deviceId} = await req.json(); 
 
         if (!emailSign || !passwordSign) return NextResponse.json({error : "Données manquante"}, {status : 400})
 

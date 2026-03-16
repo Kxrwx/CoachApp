@@ -6,7 +6,6 @@ const route = express.Router()
 route.post("", async (req, res) => {
     try {
         const token = req.cookies.session_token
-        console.log(token, "De la route")
         await updateRevokedSessionToken(token)
         res.clearCookie("session_token", {
             httpOnly: true,

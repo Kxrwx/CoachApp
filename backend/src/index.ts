@@ -5,6 +5,7 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import Secure from "./middleware/Secure";
 import authRouter from "./routes/auth.router"
+import userRouter from "./routes/user.route"
 import cookieParser from "cookie-parser"
 import authorized from "./controllers/me/authorized/authorized"
 import logout from "./controllers/me/logout/logout"
@@ -47,6 +48,7 @@ app.use(Secure)
 //Route protégé
 app.use("/authorized", authorized)
 app.use('/logout', logout)
+app.use('/user', userRouter)
 
 
 
