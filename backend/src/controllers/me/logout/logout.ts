@@ -1,9 +1,8 @@
-import express, { response } from "express"
+import type { Response } from "express"
 import {updateRevokedSessionToken} from "../../../models/auth/session"
+import type { AuthRequest } from "../../../middleware/Secure"
 
-const route = express.Router()
-
-route.post("", async (req, res) => {
+export default async function logout(req : AuthRequest, res : Response) {
     try {
         const token = req.cookies.session_token
         await updateRevokedSessionToken(token)
@@ -20,5 +19,4 @@ route.post("", async (req, res) => {
         console.log("erreur route")
         return res.status(500).json({error : "Erreur serveur"})
     }
-})
-export default route
+}

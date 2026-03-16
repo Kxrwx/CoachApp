@@ -37,7 +37,6 @@ export default async function signIn(req : Request, res : Response) {
         }
         
     catch(error) {
-        console.error("Signin error:", error)
         return res.status(500).json({error : "Serveur Error"})
     }
 }

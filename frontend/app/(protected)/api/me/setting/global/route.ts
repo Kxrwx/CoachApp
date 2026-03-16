@@ -1,16 +1,17 @@
+import { NextResponse } from "next/server";
 import axios from "axios"
-import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { cookies } from "next/headers";
 
-export async function GET() {
+export async function POST(req:Request) {
     try {
 
+        const {mfaEnabled} = await req.json()
         const cookieStore = cookies()
         const sessionToken = (await cookieStore).get("session_token")
 
         const response = await axios.post(
-            `${process.env.BACKEND_URL}/user/logout`,
-            {},
+            `${process.env.BACKEND_URL}/user/setting/global`,
+            {mfaEnabled},
             {
                 headers: {
                     Cookie: `session_token=${sessionToken?.value}`
@@ -18,11 +19,9 @@ export async function GET() {
                 withCredentials: true
             }
         )
-
-        return NextResponse.json(response.data, { status: response.status })
-
-    } 
-    
+        if(!response) return NextResponse.json({status : 400, error : "Erreur reponse serveur"})
+        return NextResponse.json(response.data, { status: 200 })
+    }
     catch (err: unknown) {
     let message = "Erreur inconnue";
     let status = 500;

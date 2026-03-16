@@ -13,7 +13,6 @@ export interface AuthRequest extends Request {
 async function authMiddleware(req: AuthRequest,res: Response,
   next: NextFunction
 ) {
-    console.log('Middlaware Node')
     try {
         
         const token = req.cookies.session_token
@@ -23,7 +22,6 @@ async function authMiddleware(req: AuthRequest,res: Response,
             return res.status(401).json({error : "Non autorisé"})
         }
         req.session = session
-        console.log("Middleware OK")
         next()
             
         
