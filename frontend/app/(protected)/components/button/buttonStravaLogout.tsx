@@ -15,8 +15,10 @@ export default function ButtonStravaLogout() {
                 withCredentials: true
             })
             if (response.status === 200) {
-                return route.refresh
-            }
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              route.replace("/reglage?success=strava_logout");
+              return route.refresh(); 
+        }
         } catch (error) {
             alert("Erreur lors de la déconnexion")
         }

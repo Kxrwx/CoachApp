@@ -94,4 +94,67 @@ model UserStrava {
   sex               String?
   
   syncedAt          DateTime @default(now()) 
+
+  allTimeStats    StravaAllTimeStatsBike?
+  yearlyStats     StravaYearlyStatsBike[]
+  monthlyStats    StravaMonthlyStatsBike[]
+  recentActivities StravaRecentActivityBike[]
+}
+
+
+
+
+
+//****************************
+// Shema Data Strava
+//******************************
+
+
+model StravaAllTimeStatsBike {
+  stravaAthleteId Int          @id @unique
+  stravaProfile   UserStrava   @relation(fields: [stravaAthleteId], references: [id], onDelete: Cascade)
+  
+  totalDistance   Float        @default(0)
+  totalElevation  Float        @default(0)
+  totalCount      Int          @default(0)
+  totalTime       Int          @default(0)
+  updatedAt       DateTime     @updatedAt
+}
+
+model StravaYearlyStatsBike {
+  id              String       @id @default(uuid())
+  stravaAthleteId Int
+  year            Int
+  distance        Float
+  elevation       Float
+  count           Int
+  stravaProfile   UserStrava   @relation(fields: [stravaAthleteId], references: [id], onDelete: Cascade)
+
+  @@unique([stravaAthleteId, year])
+}
+
+model StravaMonthlyStatsBike {
+  id              String       @id @default(uuid())
+  stravaAthleteId Int
+  year            Int
+  month           Int
+  distance        Float
+  elevation       Float
+  count           Int
+  stravaProfile   UserStrava   @relation(fields: [stravaAthleteId], references: [id], onDelete: Cascade)
+
+  @@unique([stravaAthleteId, year, month])
+}
+
+model StravaRecentActivityBike {
+  id                 BigInt     @id
+  stravaAthleteId    Int
+  name               String
+  distance           Float
+  movingTime         Int
+  elapsedTime        Int
+  totalElevationGain Float
+  type               String
+  startDate          DateTime
+  stravaProfile      UserStrava @relation(fields: [stravaAthleteId], references: [id], onDelete: Cascade)
 }

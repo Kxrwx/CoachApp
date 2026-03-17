@@ -1,44 +1,54 @@
 import prisma from "../../utils/prisma";
 
-export async function createAuthStrava(userId : string, athlete : any, accessToken : string, refreshToken : string, expiresAt : number, IncomingScope : string) {
+export async function upsertAuthStrava(userId: string, athlete: any, accessToken: string, refreshToken: string, expiresAt: number, IncomingScope: string) {
     const stravaId = String(athlete.id);
-    const req = await prisma.userAuthStrava.create({
-        data : { userId, stravaAthleteId : stravaId, accessToken, refreshToken, expiresAt, scope : IncomingScope    }
-    })
-    return req
+    return await prisma.userAuthStrava.upsert({
+        where: { userId },
+        update: {
+            stravaAthleteId: stravaId,
+            accessToken,
+            refreshToken,
+            expiresAt,
+            scope: IncomingScope,
+            updatedAt: new Date()
+        },
+        create: {
+            userId,
+            stravaAthleteId: stravaId,
+            accessToken,
+            refreshToken,
+            expiresAt,
+            scope: IncomingScope
+        }
+    });
 }
 
-export async function isAuthStrava(userId : string) {
-    const req = await prisma.userAuthStrava.findUnique({
-        where : {userId},
-        select : { id : true }
-    })
-    return req?.id  
-}
-
-export async function updateAuthStrava(userId : string, athlete : any, accessToken : string, refreshToken : string, expiresAt : number, IncomingScope : string){
-    const stravaId = String(athlete.id);
-    const req = await prisma.userAuthStrava.update({
-        
-        where : {userId},
-        data : { stravaAthleteId : stravaId, accessToken, refreshToken, expiresAt, scope : IncomingScope}
-    })
-    return req
-}
-
-export async function createUserStrava(id : number, userId:string, firstname: string, lastname : string, profilePicture : string, city : string, state : string, country : string, sex :string) {
-    const req = await prisma.userStrava.create({
-        data : {id, userId, firstname, lastname, profilePicture, city, state, country, sex}
-    })
-    return req
-}
-
-export async function updateUserStrava(id : number, userId:string, firstname: string, lastname : string, profilePicture : string, city : string, state : string, country : string, sex :string) {
-    const req = await prisma.userStrava.update({
-        where : {id},
-        data : { userId, firstname, lastname, profilePicture, city, state, country, sex}
-    })
-    return req
+export async function upsertUserStrava(id: number, userId: string, firstname: string, lastname: string, profilePicture: string, city: string, state: string, country: string, sex: string) {
+    return await prisma.userStrava.upsert({
+        where: { id },
+        update: {
+            userId, 
+            firstname,
+            lastname,
+            profilePicture,
+            city,
+            state,
+            country,
+            sex,
+            syncedAt: new Date()
+        },
+        create: {
+            id,
+            userId,
+            firstname,
+            lastname,
+            profilePicture,
+            city,
+            state,
+            country,
+            sex
+        }
+    });
 }
 
 export async function getUserStrava(userId:string) {

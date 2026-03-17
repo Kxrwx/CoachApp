@@ -3,7 +3,11 @@ import type { Response } from "express"
 import axios from "axios"
 
 //import requete 
-import { updateAuthStrava, isAuthStrava, createAuthStrava, updateUserStrava, createUserStrava } from "../../../../models/user/userStrava"
+import { upsertAuthStrava, upsertUserStrava } from "../../../../models/user/userStrava"
+import controllerATData from "./dataLoader/atStravaData"
+import controllerYearlyData from "./dataLoader/yearStravaData"
+import controllerMonthlyData from "./dataLoader/monthStravaData"
+import controllerRecentActivities from "./dataLoader/activityStravaData"
 
 
 export default async function stravaUser(req: AuthRequest, res : Response) {
@@ -40,14 +44,15 @@ export default async function stravaUser(req: AuthRequest, res : Response) {
             country, 
             sex
         } = athlete
-        const exist = await isAuthStrava(userId)
-        if(exist) {
-            const AuthStava = await updateAuthStrava(userId, athlete, access_token, refresh_token, expires_at, scope)
-            const UserStrava = await updateUserStrava(id, userId, firstname, lastname, profile, city, state, country, sex)
-            return res.status(200).json({AuthStava, UserStrava})
-        }
-        const AuthStrava = await createAuthStrava(userId, athlete, access_token, refresh_token, expires_at, scope)
-        const UserStrava = await createUserStrava(id, userId, firstname, lastname, profile, city, state, country, sex)
+        const AuthStrava = await upsertAuthStrava(userId, athlete, access_token, refresh_token, expires_at, scope)
+        const UserStrava = await upsertUserStrava(id, userId, firstname, lastname, profile, city, state, country, sex)
+
+        //Loading data Strava
+        await controllerATData(id, access_token)
+        await controllerYearlyData(id, access_token)
+        await controllerMonthlyData(id, access_token)
+        await controllerRecentActivities(id, access_token)
+        
         return res.status(200).json({AuthStrava, UserStrava})
 
         
