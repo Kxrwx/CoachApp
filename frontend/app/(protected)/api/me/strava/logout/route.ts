@@ -6,18 +6,10 @@ import { cookies } from "next/headers"
 export async function GET(req:Request) {
     try {
 
-        const cookieStore = cookies()
+        const cookieStore = await cookies()
         const sessionToken = (await cookieStore).get("session_token")
-        const { searchParams } = new URL(req.url); 
-        const code = searchParams.get('code');
-        const scope = searchParams.get('scope')
-
-        if (!code) {
-            return NextResponse.json({ error: "Code manquant" }, { status: 400 });
-        }
-
         const response = await axios.get(
-            `${process.env.BACKEND_URL}/strava/Oauth?code=${code}&scope=${scope}`,
+            `${process.env.BACKEND_URL}/strava/logout`,
             
             {
                 headers: {
@@ -27,7 +19,7 @@ export async function GET(req:Request) {
             }
         )
 
-        return NextResponse.redirect(new URL('/reglage?success=strava_linked', req.url))
+        return NextResponse.json({status : response.status})
 
     } 
     

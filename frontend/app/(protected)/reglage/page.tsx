@@ -7,6 +7,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAccount } from "../contexts/AccountProvider";
 import axios from "axios";
 import ButtonStravaConnect from "../components/button/buttonStravaConnect";
+import ButtonStravaLogout from "../components/button/buttonStravaLogout";
 
 export default function SettingsPage() {
   const { user, userStrava,  loading } = useAccount();
@@ -205,12 +206,7 @@ export default function SettingsPage() {
          </div>
       </div>
       
-      <button 
-        onClick={() => {/* Ta fonction de déconnexion */}}
-        className="text-xs font-medium text-gray-400 hover:text-red-500 transition-colors"
-      >
-        Dissocier le compte
-      </button>
+      <ButtonStravaLogout/>
     </div>
   )}
 </section>

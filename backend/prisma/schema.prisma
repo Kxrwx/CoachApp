@@ -22,7 +22,6 @@ model Users {
 
   //Strava
   userAuthStrava UserAuthStrava?
-  userStrava     UserStrava?
   
 }
 
@@ -70,7 +69,7 @@ model UserAuthStrava {
   id               String   @id @default(uuid())
   userId           String   @unique 
   user             Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userStrava      UserStrava?
   stravaAthleteId  String   @unique 
   accessToken      String   @db.Text
   refreshToken     String   @db.Text
@@ -82,11 +81,11 @@ model UserAuthStrava {
 }
 
 model UserStrava {
-  id                Int   @id 
-  userId            String   @unique
-  user              Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              Int      @id 
+  userId          String   @unique
+  stravaAuth      UserAuthStrava @relation(fields: [userId], references: [userId], onDelete: Cascade)
   
-  firstname         String?
+  firstname       String?
   lastname          String?
   profilePicture    String?  
   city              String?

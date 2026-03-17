@@ -15,7 +15,6 @@ export default function ButtonLogout() {
                 return route.replace("/auth")
             }
         } catch (error) {
-            console.error("Logout error:", error)
             alert("Erreur lors de la déconnexion")
         }
     }

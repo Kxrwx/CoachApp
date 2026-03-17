@@ -48,3 +48,11 @@ export async function getUserStrava(userId:string) {
     return req
     
 }
+
+export async function deleteStrava(userId:string) {
+    const req = await prisma.userAuthStrava.delete({
+        where : {userId}
+    })
+    return req
+    
+}
