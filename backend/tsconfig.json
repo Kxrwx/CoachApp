@@ -26,6 +26,6 @@
     "ignoreDeprecations": "6.0",               
     "jsx": "react-jsx"                        
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../frontend/app/(protected)/activites"],
   "exclude": ["node_modules", "dist"]
 }
