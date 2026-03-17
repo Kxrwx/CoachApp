@@ -9,7 +9,7 @@ import axios from "axios";
 import ButtonStravaConnect from "../components/button/buttonStravaConnect";
 
 export default function SettingsPage() {
-  const { user, loading } = useAccount();
+  const { user, userStrava,  loading } = useAccount();
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -142,23 +142,78 @@ export default function SettingsPage() {
     </section>
 
     {/* SECTION STRAVA */}
-    <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-      <div className="flex items-center gap-3 mb-6 border-b pb-4">
-        <FontAwesomeIcon icon={faStrava} />
-        <h3 className="font-semibold text-gray-800">Applications tierces</h3>
-      </div>
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="font-medium text-gray-700">Strava</p>
-          <p className="text-sm text-gray-500">
-            Synchronisez vos activités sportives et vos statistiques.
-          </p>
+<section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+  <div className="flex items-center gap-3 mb-6 border-b pb-4">
+    <FontAwesomeIcon icon={faStrava} className="text-[#FC4C02] text-xl" />
+    <h3 className="font-semibold text-gray-800">Applications tierces</h3>
+  </div>
+
+  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="flex-1">
+      <p className="font-medium text-gray-700">Strava</p>
+      <p className="text-sm text-gray-500">
+        {userStrava 
+          ? "Votre compte est lié. Vos activités sont automatiquement synchronisées." 
+          : "Synchronisez vos activités sportives et vos statistiques en temps réel."}
+      </p>
+    </div>
+
+    {userStrava ? (
+      <div className="group relative flex items-center gap-4 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 min-w-[300px] transition-all hover:bg-orange-50">
+        <div className="relative">
+          <img 
+            src={userStrava.profile} 
+            alt="Profil Strava" 
+            className="w-12 h-12 rounded-full border-2 border-white shadow-md"
+          />
+          <div className="absolute -bottom-1 -right-1 bg-[#FC4C02] text-white rounded-full p-0.5 border-2 border-white">
+            <FontAwesomeIcon icon={faStrava} className="w-2 h-2" />
+          </div>
         </div>
-        <div>
-          <ButtonStravaConnect />
+        
+        <div className="flex flex-col">
+          <span className="text-sm font-bold text-gray-900 leading-none mb-1">
+            {userStrava.firstname} {userStrava.lastname}
+          </span>
+          <span className="text-xs text-gray-600 mb-1">
+            {userStrava.city}, {userStrava.country}
+          </span>
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-orange-600 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></span>
+            Synchro le {new Date(userStrava.syncedAt).toLocaleDateString("fr-FR")}
+          </span>
         </div>
       </div>
-    </section>
+    ) : (
+      <div className="flex items-center gap-4">
+        <ButtonStravaConnect />
+      </div>
+    )}
+  </div>
+
+  {userStrava && (
+    <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-50">
+      <div className="flex gap-4">
+         <div className="text-center">
+            <p className="text-[10px] text-gray-400 uppercase font-bold">Sexe</p>
+            <p className="text-sm font-semibold text-gray-700">{userStrava.sex === 'M' ? 'Homme' : 'Femme'}</p>
+         </div>
+         <div className="w-px h-8 bg-gray-100"></div>
+         <div className="text-center">
+            <p className="text-[10px] text-gray-400 uppercase font-bold">Région</p>
+            <p className="text-sm font-semibold text-gray-700">{userStrava.state}</p>
+         </div>
+      </div>
+      
+      <button 
+        onClick={() => {/* Ta fonction de déconnexion */}}
+        className="text-xs font-medium text-gray-400 hover:text-red-500 transition-colors"
+      >
+        Dissocier le compte
+      </button>
+    </div>
+  )}
+</section>
 
     {/* Section Infos Système */}
     <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">

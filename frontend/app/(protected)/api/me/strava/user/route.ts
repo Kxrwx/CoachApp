@@ -19,7 +19,7 @@ export async function GET(req:Request) {
             }
         )
 
-        return NextResponse.json({statut : response.status, date : response.data})
+        return NextResponse.json(response.data)
 
     } 
     

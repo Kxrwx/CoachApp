@@ -8,7 +8,6 @@ import { getOrGenerateDeviceId } from "@/lib/bib";
 import { useAccount } from "../(protected)/contexts/AccountProvider";
 
 export default function AuthPage() {
-    const {setUserData} = useAccount()
     const [signIn, setSignIn] = useState<boolean>(true);
     const[emailSign, setEmailSign] = useState("")
     const[passwordSign, setPasswordSign] = useState("")
@@ -38,7 +37,6 @@ export default function AuthPage() {
                 deviceId
             });
             if (reponse) {
-              setUserData(reponse.data)
               return router.replace("/");
             }
         } 
@@ -77,7 +75,6 @@ export default function AuthPage() {
             if(reponse.status == 401) setErrors(["Erreur login"])
             alert("Compte créé !");
             if (reponse) {
-              setUserData(reponse.data)
               return router.replace("/");
             } 
         }
