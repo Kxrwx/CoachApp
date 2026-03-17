@@ -3,13 +3,23 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser"
+import rateLimit from "express-rate-limit";
+
+//import metier
+
+//middleware
 import Secure from "./middleware/Secure";
+
+//Routers
 import authRouter from "./routes/auth.router"
 import userRouter from "./routes/user.route"
-import cookieParser from "cookie-parser"
+import stravaRouter from "./routes/strava.route"
+
+//Controllers
 import authorized from "./controllers/me/authorized/authorized"
 import logout from "./controllers/me/logout/logout"
-import rateLimit from "express-rate-limit";
+
 
 const authLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, 
@@ -48,7 +58,10 @@ app.use(Secure)
 //Route protégé
 app.use("/authorized", authorized)
 app.use('/logout', logout)
+
+//Routers protégé
 app.use('/user', userRouter)
+app.use("/strava", stravaRouter)
 
 
 

@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { ShieldCheck, Calendar, Save, Loader2, Mail, CheckCircle2 } from "lucide-react";
+import { faStrava } from "@fortawesome/free-brands-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAccount } from "../contexts/AccountProvider";
 import axios from "axios";
+import ButtonStravaConnect from "../components/button/buttonStravaConnect";
 
 export default function SettingsPage() {
   const { user, loading } = useAccount();
@@ -12,7 +15,6 @@ export default function SettingsPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Vérifier si la valeur a changé par rapport aux données initiales
   const hasChanged = user?.mfaEnabled !== mfaEnabled;
 
   useEffect(() => {
@@ -30,7 +32,6 @@ export default function SettingsPage() {
   }
 
   const handleSave = async () => {
-    // Sécurité supplémentaire : on ne fait rien si rien n'a changé
     if (!hasChanged) return;
 
     try {
@@ -45,7 +46,6 @@ export default function SettingsPage() {
 
       if (res.status === 200) {
         setShowSuccess(true);
-        // On pourrait ici appeler une fonction pour rafraîchir les données du context user
         setTimeout(() => setShowSuccess(false), 3000);
       }
     } catch (err: any) {
@@ -62,101 +62,118 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-10">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800">Paramètres du compte</h2>
-        <p className="text-gray-500 text-sm">
-          Identifiant unique : <code className="bg-gray-100 px-1 rounded text-xs">{user?.id}</code>
-        </p>
-      </div>
+  <div className="mb-8">
+    <h2 className="text-2xl font-bold text-gray-800">Paramètres du compte</h2>
+    <p className="text-gray-500 text-sm">
+      Identifiant unique : <code className="bg-gray-100 px-1 rounded text-xs">{user?.id}</code>
+    </p>
+  </div>
 
-      {showSuccess && (
-        <div className="mb-6 flex items-center gap-2 bg-green-50 text-green-700 p-4 rounded-lg border border-green-200 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 size={18} />
-          <span>Vos paramètres ont été mis à jour avec succès.</span>
-        </div>
-      )}
-
-      {error && (
-        <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 text-sm">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-6">
-        {/* Section Identifiants (Lecture seule) */}
-        <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 border-b pb-4">
-            <Mail className="text-indigo-600" size={20} />
-            <h3 className="font-semibold text-gray-800">Identifiants</h3>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Adresse Email</label>
-            <input
-              type="email"
-              className="w-full p-2 border rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed outline-none"
-              value={user?.email || ""}
-              disabled
-            />
-          </div>
-        </section>
-
-        {/* Section Sécurité (Modifiable avec bouton intégré) */}
-        <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 border-b pb-4">
-            <ShieldCheck className="text-indigo-600" size={20} />
-            <h3 className="font-semibold text-gray-800">Sécurité</h3>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="font-medium text-gray-700">Double authentification (MFA)</p>
-              <p className="text-sm text-gray-500">Sécurisez votre compte avec une étape de validation.</p>
-            </div>
-
-            <div className="flex items-center gap-6">
-              {/* Le bouton de sauvegarde n'apparaît ou n'est actif que si changement */}
-              {hasChanged && (
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm"
-                >
-                  {isSaving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  Enregistrer
-                </button>
-              )}
-
-              {/* Toggle Switch */}
-              <button
-                onClick={() => setMfaEnabled(!mfaEnabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                  mfaEnabled ? "bg-indigo-600" : "bg-gray-200"
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    mfaEnabled ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Section Infos Système */}
-        <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 border-b pb-4">
-            <Calendar className="text-indigo-600" size={20} />
-            <h3 className="font-semibold text-gray-800">Informations système</h3>
-          </div>
-          <div className="text-sm text-gray-600 space-y-2">
-            <p>Membre depuis : <span className="font-medium text-gray-800">{memberSince}</span></p>
-            <p>Dernière mise à jour : <span className="font-medium text-gray-800">
-              {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString("fr-FR") : "N/A"}
-            </span></p>
-          </div>
-        </section>
-      </div>
+  {showSuccess && (
+    <div className="mb-6 flex items-center gap-2 bg-green-50 text-green-700 p-4 rounded-lg border border-green-200 animate-in fade-in slide-in-from-top-2">
+      <CheckCircle2 size={18} />
+      <span>Vos paramètres ont été mis à jour avec succès.</span>
     </div>
+  )}
+
+  {error && (
+    <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 text-sm">
+      {error}
+    </div>
+  )}
+
+  <div className="space-y-6">
+    {/* Section Identifiants (Lecture seule) */}
+    <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex items-center gap-3 mb-6 border-b pb-4">
+        <Mail className="text-indigo-600" size={20} />
+        <h3 className="font-semibold text-gray-800">Identifiants</h3>
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700">Adresse Email</label>
+        <input
+          type="email"
+          className="w-full p-2 border rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed outline-none"
+          value={user?.email || ""}
+          disabled
+        />
+      </div>
+    </section>
+
+    {/* Section Sécurité */}
+    <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex items-center gap-3 mb-6 border-b pb-4">
+        <ShieldCheck className="text-indigo-600" size={20} />
+        <h3 className="font-semibold text-gray-800">Sécurité</h3>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="font-medium text-gray-700">Double authentification (MFA)</p>
+          <p className="text-sm text-gray-500">Sécurisez votre compte avec une étape de validation.</p>
+        </div>
+
+        <div className="flex items-center gap-6">
+          {hasChanged && (
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm"
+            >
+              {isSaving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              Enregistrer
+            </button>
+          )}
+
+          <button
+            onClick={() => setMfaEnabled(!mfaEnabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              mfaEnabled ? "bg-indigo-600" : "bg-gray-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                mfaEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+    </section>
+
+    {/* SECTION STRAVA */}
+    <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex items-center gap-3 mb-6 border-b pb-4">
+        <FontAwesomeIcon icon={faStrava} />
+        <h3 className="font-semibold text-gray-800">Applications tierces</h3>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="font-medium text-gray-700">Strava</p>
+          <p className="text-sm text-gray-500">
+            Synchronisez vos activités sportives et vos statistiques.
+          </p>
+        </div>
+        <div>
+          <ButtonStravaConnect />
+        </div>
+      </div>
+    </section>
+
+    {/* Section Infos Système */}
+    <section className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex items-center gap-3 mb-6 border-b pb-4">
+        <Calendar className="text-indigo-600" size={20} />
+        <h3 className="font-semibold text-gray-800">Informations système</h3>
+      </div>
+      <div className="text-sm text-gray-600 space-y-2">
+        <p>Membre depuis : <span className="font-medium text-gray-800">{memberSince}</span></p>
+        <p>Dernière mise à jour : <span className="font-medium text-gray-800">
+          {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString("fr-FR") : "N/A"}
+        </span></p>
+      </div>
+    </section>
+  </div>
+</div>
   );
 }
