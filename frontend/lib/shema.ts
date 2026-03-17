@@ -67,6 +67,27 @@ export const DeviceSchema = z.object({
   lastSeenAt: z.string(),
 })
 
+
+
+
+// -----------------------
+// Strava
+// -----------------------
+
+export const UserStrava = z.object({
+  id : z.number(), 
+  firstname : z.string(), 
+  lastname : z.string(),
+  profile : z.string(),
+  city : z.string(),
+  state : z.string(),
+  country : z.string(),
+  sex : z.string().length(1),
+  syncedAt : z.string()
+})
+
+
+
 // -----------------------
 // Types TypeScript
 // -----------------------
@@ -76,6 +97,8 @@ export type Password = z.infer<typeof PasswordSchema>
 export type Session = z.infer<typeof SessionSchema>
 export type Device = z.infer<typeof DeviceSchema>
 
+
+export type UserStrava = z.infer<typeof UserStrava>
 // -----------------------
 // Window global helpers
 // -----------------------

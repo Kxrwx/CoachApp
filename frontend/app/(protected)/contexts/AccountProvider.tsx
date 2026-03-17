@@ -1,29 +1,44 @@
 "use client";
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import { User } from "../../../lib/shema";
-
+import { User, UserStrava } from "../../../lib/shema";
 
 interface AccountContextType {
   user: User | null;
+  userStrava: UserStrava | null; // Correction du type ici
   loading: boolean;
   refreshUser: () => Promise<void>;
-  setUserData: (user: User | null) => void; 
+  setUserData: (user: User | null) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userStrava, setUserStrava] = useState<UserStrava | null>(null); // Type corrigé
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
+  // Fonction globale pour rafraîchir toutes les données
+  const refreshUser = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/me/user`, { withCredentials: true });
-      setUser(res.data);
-    } catch (err) {
-      setUser(null);
+      // On lance les deux requêtes en parallèle pour gagner du temps
+      const [userRes, stravaRes] = await Promise.allSettled([
+        axios.get(`/api/me/user`, { withCredentials: true }),
+        axios.get(`/api/me/strava/user`, { withCredentials: true }) 
+      ]);
+
+      if (userRes.status === "fulfilled") {
+        setUser(userRes.value.data);
+      } else {
+        setUser(null);
+      }
+
+      if (stravaRes.status === "fulfilled") {
+        setUserStrava(stravaRes.value.data);
+      } else {
+        setUserStrava(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -31,15 +46,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const setUserData = (userData: User | null) => {
     setUser(userData);
-    setLoading(false);
   };
 
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    refreshUser();
+  }, [refreshUser]);
 
   return (
-    <AccountContext.Provider value={{ user, loading, refreshUser: fetchUser, setUserData }}>
+    <AccountContext.Provider value={{ user, userStrava, loading, refreshUser, setUserData }}>
       {children}
     </AccountContext.Provider>
   );
@@ -47,13 +61,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
 export const useAccount = () => {
   const context = useContext(AccountContext);
-  if (!context) {
-    return { 
-      user: null, 
-      loading: false, 
-      setUserData: () => {}, 
-      refreshUser: async () => {} 
-    };
+  if (context === undefined) {
+    throw new Error("useAccount doit être utilisé à l'intérieur d'un AccountProvider");
   }
   return context;
 };

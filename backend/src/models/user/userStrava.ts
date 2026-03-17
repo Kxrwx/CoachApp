@@ -40,3 +40,11 @@ export async function updateUserStrava(id : number, userId:string, firstname: st
     })
     return req
 }
+
+export async function getUserStrava(userId:string) {
+    const req = await prisma.userStrava.findUnique({
+        where : {userId},
+    })
+    return req
+    
+}
