@@ -3,7 +3,7 @@ import type { Response } from "express"
 import axios from "axios"
 
 //import requete 
-import { updateAuthStrava, isAuthStrava, createAuthStrava } from "../../../../models/user/userStrava"
+import { updateAuthStrava, isAuthStrava, createAuthStrava, updateUserStrava, createUserStrava } from "../../../../models/user/userStrava"
 
 
 export default async function stravaUser(req: AuthRequest, res : Response) {
@@ -14,7 +14,8 @@ export default async function stravaUser(req: AuthRequest, res : Response) {
         const client_id = process.env.STRAVA_CLIENT_ID
         const client_secret = process.env.STRAVA_CLIENT_SECRET
         const code = req.query.code as string
-        const scope = (req.query.scope as string) || "read";
+        const scope = (req.query.scope as string);
+        if(!scope || !code) return res.status(404).json({error : "Erreur code ou scope"})
         console.log(code)
         if(!code) return res.status(401).json({error : "Code authorization manquant"})
         const grant_type = 'authorization_code'
@@ -29,13 +30,25 @@ export default async function stravaUser(req: AuthRequest, res : Response) {
             expires_at, 
             athlete, 
         } = reponse.data
+        const {
+            id, 
+            firstname, 
+            lastname, 
+            profile, 
+            city, 
+            state, 
+            country, 
+            sex
+        } = athlete
         const exist = await isAuthStrava(userId)
         if(exist) {
             const AuthStava = await updateAuthStrava(userId, athlete, access_token, refresh_token, expires_at, scope)
-            return res.status(200).json(AuthStava)
+            const UserStrava = await updateUserStrava(id, userId, firstname, lastname, profile, city, state, country, sex)
+            return res.status(200).json({AuthStava, UserStrava})
         }
         const AuthStrava = await createAuthStrava(userId, athlete, access_token, refresh_token, expires_at, scope)
-        return res.status(200).json(AuthStrava)
+        const UserStrava = await createUserStrava(id, userId, firstname, lastname, profile, city, state, country, sex)
+        return res.status(200).json({AuthStrava, UserStrava})
 
         
     }

@@ -25,3 +25,18 @@ export async function updateAuthStrava(userId : string, athlete : any, accessTok
     })
     return req
 }
+
+export async function createUserStrava(id : number, userId:string, firstname: string, lastname : string, profilePicture : string, city : string, state : string, country : string, sex :string) {
+    const req = await prisma.userStrava.create({
+        data : {id, userId, firstname, lastname, profilePicture, city, state, country, sex}
+    })
+    return req
+}
+
+export async function updateUserStrava(id : number, userId:string, firstname: string, lastname : string, profilePicture : string, city : string, state : string, country : string, sex :string) {
+    const req = await prisma.userStrava.update({
+        where : {id},
+        data : { userId, firstname, lastname, profilePicture, city, state, country, sex}
+    })
+    return req
+}

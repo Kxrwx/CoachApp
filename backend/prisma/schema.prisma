@@ -82,7 +82,7 @@ model UserAuthStrava {
 }
 
 model UserStrava {
-  id                String   @id 
+  id                Int   @id 
   userId            String   @unique
   user              Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
