@@ -107,3 +107,43 @@ export async function upsertActivityStrava(id : bigint, stravaAthleteId: number,
 }
 
 
+export async function upsertActivityDetailStrava(activityId: bigint, details: any) {
+    return await prisma.stravaActivityDetail.upsert({
+        where: { activityId: activityId },
+        update: {
+            avgWatts: details.average_watts,
+            maxWatts: details.max_watts,
+            weightedWatts: details.weighted_average_watts,
+            kilojoules: details.kilojoules,
+            hasPower: details.device_watts || false,
+            avgHeartrate: details.average_heartrate,
+            maxHeartrate: details.max_heartrate,
+            avgCadence: details.average_cadence,
+            avgTemp: details.average_temp,
+            elevHigh: details.elev_high,
+            elevLow: details.elev_low,
+            calories: details.calories,
+            polyline: details.map?.summary_polyline,
+            device: details.device_name,
+        },
+        create: {
+            id: activityId, 
+            activityId: activityId,
+            avgWatts: details.average_watts,
+            maxWatts: details.max_watts,
+            weightedWatts: details.weighted_average_watts,
+            kilojoules: details.kilojoules,
+            hasPower: details.device_watts || false,
+            avgHeartrate: details.average_heartrate,
+            maxHeartrate: details.max_heartrate,
+            avgCadence: details.average_cadence,
+            avgTemp: details.average_temp,
+            elevHigh: details.elev_high,
+            elevLow: details.elev_low,
+            calories: details.calories,
+            polyline: details.map?.summary_polyline,
+            device: details.device_name,
+        }
+    });
+}
+

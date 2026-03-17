@@ -8,6 +8,7 @@ export default async function getAllActivities(req:AuthRequest, res : Response) 
         if(!UserId) return res.status(404).json("Aucun user")
         const response = await GetAllActivities(UserId)
         if(!response) return res.status(404).json("Aucune data Strava")
+        
         return res.status(200).json(response)
     }
     catch (error) {

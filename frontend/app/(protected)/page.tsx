@@ -1,6 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
+// Icônes
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faStrava } from "@fortawesome/free-brands-svg-icons";
+import { 
+  Bike, 
+  Mountain, 
+  Calendar, 
+  Timer, 
+  Zap, 
+  TrendingUp, 
+  Activity,
+  ChevronRight
+} from "lucide-react";
+
+
+import PerformanceChart from "./components/charts/PerformanceCharts"; 
 
 export default function Home() {
   const [data, setData] = useState<any>(null);
@@ -22,107 +38,148 @@ export default function Home() {
     fetchData();
   }, []);
 
-  if (loading) return <div className="flex h-screen items-center justify-center text-zinc-500 italic">Chargement du peloton...</div>;
-  if (error) return <div className="p-10 text-center text-red-500 font-bold">❌ {error}</div>;
+  if (loading) return (
+    <div className="flex h-screen flex-col items-center justify-center bg-zinc-50 dark:bg-black">
+      <FontAwesomeIcon icon={faStrava} className="mb-4 h-10 w-10 animate-pulse text-orange-600" />
+      <p className="text-[10px] font-black tracking-[0.3em] text-zinc-400 uppercase">Analyse des segments...</p>
+    </div>
+  );
 
-  // Extraction des données pour plus de clarté
   const at = data?.allTimeStats;
-  const currentYear = data?.yearlyStats?.[0]; // Le plus récent grâce au orderBy
+  const currentYear = data?.yearlyStats?.[0];
   const currentMonth = data?.monthlyStats?.[0];
 
   return (
-    <div className="min-h-screen bg-zinc-50 p-4 dark:bg-black sm:p-8">
-      <header className="mb-10 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
-            STRAVA <span className="text-orange-600">DASHBOARD</span>
-          </h1>
-          <p className="text-zinc-500">Statistiques de cyclisme synchronisées</p>
-        </div>
-        <div className="h-2 w-2 animate-pulse rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)]"></div>
-      </header>
-
-      {/* GRILLE DES SCORES ALL-TIME */}
-      <section className="mb-12">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-zinc-400">Palmarès Global</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Distance Totale" value={at?.totalDistance} unit="km" color="text-orange-600" />
-          <StatCard title="Dénivelé" value={at?.totalElevation} unit="m" />
-          <StatCard title="Sorties" value={at?.totalCount} unit="rides" />
-          <StatCard title="Temps Selle" value={Math.round((at?.totalTime || 0) / 3600)} unit="heures" />
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* STATS ANNUELLES */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mb-6 flex items-center justify-between">
-            <h3 className="text-xl font-bold">Objectif Annuel ({currentYear?.year})</h3>
-            <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-600 dark:bg-orange-900/30">En cours</span>
+    <div className="min-h-screen bg-[#F8F9FA] p-4 dark:bg-[#050505] sm:p-8">
+      
+      {/* HEADER SECTION */}
+      <header className="mx-auto max-w-7xl mb-12 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-5">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-600 shadow-xl shadow-orange-600/20">
+            <FontAwesomeIcon icon={faStrava} className="h-8 w-8 text-white" />
           </div>
-          <div className="space-y-6">
-            <ProgressStat label="Distance" current={currentYear?.distance} target={10000} unit="km" />
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-800/50">
-                <p className="text-xs text-zinc-400">Dénivelé</p>
-                <p className="text-lg font-bold">{currentYear?.elevation.toLocaleString()} m</p>
-              </div>
-              <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-800/50">
-                <p className="text-xs text-zinc-400">Nombre de rides</p>
-                <p className="text-lg font-bold">{currentYear?.count}</p>
-              </div>
+          <div>
+            <h1 className="text-4xl font-black italic tracking-tighter text-zinc-900 dark:text-white uppercase">
+              RIDE <span className="text-orange-600 text-stroke-orange">LOG</span>
+            </h1>
+            <div className="flex items-center gap-2 text-zinc-500">
+                <Activity size={14} className="text-green-500" />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Live API Sync</span>
             </div>
           </div>
         </div>
+      </header>
 
-        {/* STATS MENSUELLES */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mb-6 flex items-center justify-between">
-            <h3 className="text-xl font-bold text-blue-500">Ce mois-ci</h3>
-            <span className="text-sm text-zinc-400">Mois {currentMonth?.month}</span>
+      <main className="mx-auto max-w-7xl space-y-8">
+        
+        {/* TOP STATS : GRID 4 COLUMNS */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="Distance Totale" value={at?.totalDistance} unit="km" icon={<Bike size={20} />} highlight />
+          <StatCard title="Dénivelé Total" value={at?.totalElevation} unit="m" icon={<Mountain size={20} />} />
+          <StatCard title="Sorties" value={at?.totalCount} unit="sessions" icon={<Calendar size={20} />} />
+          <StatCard title="Temps de Selle" value={Math.round((at?.totalTime || 0) / 3600)} unit="hrs" icon={<Timer size={20} />} />
+        </section>
+
+        {/* MIDDLE SECTION : CHART + CURRENT MONTH */}
+        <section className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          
+          {/* LE GRAPHIQUE RECHARTS (PREND 2 COLONNES) */}
+          <div className="lg:col-span-2">
+            <PerformanceChart data={data?.monthlyStats || []} />
           </div>
-          <div className="flex flex-col items-center justify-center py-4">
-             <div className="text-6xl font-black text-zinc-900 dark:text-white">
-                {Math.round(currentMonth?.distance || 0)}
-             </div>
-             <div className="text-sm font-bold uppercase tracking-tighter text-zinc-400">Kilomètres parcourus</div>
-             <div className="mt-6 h-1 w-full max-w-[200px] rounded-full bg-zinc-100 dark:bg-zinc-800">
-                <div 
-                  className="h-1 rounded-full bg-blue-500 transition-all duration-1000" 
-                  style={{ width: `${Math.min((currentMonth?.distance / 500) * 100, 100)}%` }}
-                ></div>
-             </div>
+
+          {/* FOCUS MOIS ACTUEL */}
+          <div className="flex flex-col justify-between overflow-hidden rounded-[2.5rem] bg-zinc-900 p-8 text-white dark:bg-zinc-900 border border-zinc-800">
+            <div>
+                <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">Focus Mensuel</span>
+                    <TrendingUp size={18} className="text-orange-500" />
+                </div>
+                <h3 className="text-3xl font-black">Performance <br/>de Mars</h3>
+            </div>
+
+            <div className="py-10 text-center">
+                <span className="text-8xl font-black tracking-tighter text-white">
+                    {Math.round(currentMonth?.distance || 0)}
+                </span>
+                <p className="mt-2 text-xs font-bold uppercase tracking-widest text-zinc-500">Kilomètres</p>
+            </div>
+
+            <button className="flex items-center justify-center gap-2 rounded-2xl bg-orange-600 py-4 text-sm font-black uppercase transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                Voir les détails <ChevronRight size={16} />
+            </button>
           </div>
-        </div>
-      </div>
+        </section>
+
+        {/* BOTTOM SECTION : YEARLY PROGRESS */}
+        <section className="rounded-[2.5rem] border border-zinc-200 bg-white p-8 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mb-8 flex items-center gap-3">
+                <Zap size={24} className="text-orange-500" />
+                <h3 className="text-2xl font-black tracking-tight uppercase">Progression Annuelle {currentYear?.year}</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+                <ProgressStat label="Objectif Distance" current={currentYear?.distance} target={10000} unit="km" />
+                <div className="flex items-center justify-around rounded-3xl bg-zinc-50 p-6 dark:bg-zinc-900">
+                    <div className="text-center">
+                        <p className="text-[10px] font-bold uppercase text-zinc-400 mb-1">Dénivelé YTD</p>
+                        <p className="text-2xl font-black text-orange-600">+{currentYear?.elevation.toLocaleString()} m</p>
+                    </div>
+                    <div className="h-10 w-[1px] bg-zinc-200 dark:bg-zinc-800"></div>
+                    <div className="text-center">
+                        <p className="text-[10px] font-bold uppercase text-zinc-400 mb-1">Nombre de rides</p>
+                        <p className="text-2xl font-black">{currentYear?.count}</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+      </main>
+
+      {/* FOOTER COMPLIANCE */}
+      <footer className="mt-20 flex flex-col items-center justify-center py-10 border-t border-zinc-200 dark:border-zinc-900">
+          <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity">
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400">Powered by</span>
+              <FontAwesomeIcon icon={faStrava} className="h-5 w-5 text-orange-600" />
+              <span className="text-lg font-black italic tracking-tighter text-zinc-900 dark:text-white uppercase">Strava</span>
+          </div>
+      </footer>
     </div>
   );
 }
 
-// Sous-composant pour les petites cartes
-function StatCard({ title, value, unit, color = "text-zinc-900 dark:text-white" }: any) {
+// COMPOSANTS UI
+function StatCard({ title, value, unit, icon, highlight = false }: any) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="mb-1 text-xs font-medium text-zinc-400 uppercase">{title}</p>
-      <p className={`text-2xl font-black ${color}`}>
+    <div className={`group rounded-[2rem] border p-6 transition-all duration-300 hover:-translate-y-1 ${
+        highlight 
+        ? "border-orange-500/20 bg-white shadow-xl shadow-orange-500/5 dark:bg-zinc-900" 
+        : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+    }`}>
+      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${
+          highlight ? "bg-orange-600 text-white" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+      }`}>
+        {icon}
+      </div>
+      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{title}</p>
+      <p className={`text-3xl font-black tracking-tighter ${highlight ? "text-orange-600" : "text-zinc-900 dark:text-white"}`}>
         {value?.toLocaleString()} <span className="text-sm font-normal text-zinc-400">{unit}</span>
       </p>
     </div>
   );
 }
 
-// Sous-composant pour les barres de progression
 function ProgressStat({ label, current, target, unit }: any) {
   const percent = Math.min(Math.round((current / target) * 100), 100);
   return (
-    <div className="w-full">
-      <div className="mb-2 flex justify-between text-sm">
-        <span className="font-bold text-zinc-600 dark:text-zinc-300">{label}</span>
-        <span className="text-zinc-400">{current?.toLocaleString()} / {target} {unit}</span>
+    <div className="flex flex-col justify-center">
+      <div className="mb-4 flex justify-between items-end text-sm">
+        <span className="font-black uppercase tracking-widest text-zinc-400">{label}</span>
+        <span className="text-2xl font-black italic">
+            {current?.toLocaleString()} <span className="text-sm font-normal text-zinc-400 italic">/ {target} {unit}</span>
+        </span>
       </div>
-      <div className="h-3 w-full rounded-full bg-zinc-100 dark:bg-zinc-800">
+      <div className="h-6 w-full rounded-full bg-zinc-100 dark:bg-zinc-900 p-1.5 shadow-inner">
         <div 
-          className="h-3 rounded-full bg-orange-500 transition-all duration-1000" 
+          className="h-full rounded-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all duration-1000" 
           style={{ width: `${percent}%` }}
         ></div>
       </div>

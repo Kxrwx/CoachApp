@@ -157,4 +157,41 @@ model StravaRecentActivityBike {
   type               String
   startDate          DateTime
   stravaProfile      UserStrava @relation(fields: [stravaAthleteId], references: [id], onDelete: Cascade)
+
+  details            StravaActivityDetail?
+}
+
+
+model StravaActivityDetail {
+  id                 BigInt                  @id
+  // Relation 1-1 avec l'activité parente
+  activityId         BigInt                  @unique
+  activity           StravaRecentActivityBike @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  // --- DONNÉES ÉLITES ---
+  
+  // Performance (Watts)
+  avgWatts           Float?
+  maxWatts           Int?
+  weightedWatts      Float?   // Normalized Power
+  kilojoules         Float?   // Énergie
+  hasPower           Boolean  @default(false)
+
+  // Cardio
+  avgHeartrate       Float?
+  maxHeartrate       Int?
+
+  // Technique / Environnement
+  avgCadence         Float?
+  avgTemp            Int?
+  elevHigh           Float?
+  elevLow            Float?
+  calories           Float?
+  
+  // GPS (La trace pour la carte)
+  polyline           String?  @db.Text
+  
+  // Metadata
+  device             String?  // Ex: "Garmin Edge 830"
+  updatedAt          DateTime @updatedAt
 }

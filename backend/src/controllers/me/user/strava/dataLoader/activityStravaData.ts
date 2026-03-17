@@ -1,13 +1,13 @@
 import axios from "axios";
-import { upsertActivityStrava } from "../../../../../models/strava/data";
+import { upsertActivityStrava, upsertActivityDetailStrava } from "../../../../../models/strava/data";
 
-export default async function controllerRecentActivities(stravaAthleteId: number, accessToken: string) {
+export default async function controllerRecentActivitiesWithDetails(stravaAthleteId: number, accessToken: string) {
     try {
         const dateLimit = new Date();
         dateLimit.setDate(dateLimit.getDate() - 30);
         const afterTimestamp = Math.floor(dateLimit.getTime() / 1000);
 
-        const response = await axios.get(
+        const listResponse = await axios.get(
             `https://www.strava.com/api/v3/athlete/activities`,
             { 
                 headers: { Authorization: `Bearer ${accessToken}` },
@@ -15,7 +15,7 @@ export default async function controllerRecentActivities(stravaAthleteId: number
             }
         );
 
-        const activities = response.data;
+        const activities = listResponse.data;
         if (!Array.isArray(activities)) throw new Error("Format d'activités invalide");
 
         const results = [];
@@ -23,7 +23,14 @@ export default async function controllerRecentActivities(stravaAthleteId: number
         for (const activity of activities) {
             if (activity.type === 'Ride' || activity.type === 'VirtualRide') {
                 
-                const data = await upsertActivityStrava(
+                const detailResponse = await axios.get(
+                    `https://www.strava.com/api/v3/activities/${activity.id}`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                
+                const details = detailResponse.data;
+
+                const baseActivity = await upsertActivityStrava(
                     BigInt(activity.id), 
                     stravaAthleteId,
                     activity.name,
@@ -34,15 +41,20 @@ export default async function controllerRecentActivities(stravaAthleteId: number
                     activity.type,
                     new Date(activity.start_date)
                 );
+
+                await upsertActivityDetailStrava(
+                    BigInt(activity.id),
+                    details
+                );
                 
-                results.push(data);
+                results.push({ ...baseActivity, hasDetails: true });
+
             }
         }
 
         return results;
 
     } catch (error) {
-        console.error("Erreur Recent Activities DataLoader:", error);
         throw error;
     }
 }

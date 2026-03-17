@@ -23,3 +23,22 @@ export async function GetAllActivities(userId: string) {
 
     return { ...data, recentActivities: serializedActivities };
 }
+
+export async function GetDetailActivity(stravaAthleteId: number, activityId: bigint | string) {
+    const idToQuery = BigInt(activityId);
+
+    const data = await prisma.stravaRecentActivityBike.findUnique({
+        where: {
+            id: idToQuery 
+        },
+        include: {
+            details: true 
+        }
+    });
+
+    if (data && data.stravaAthleteId !== stravaAthleteId) {
+        return null;
+    }
+
+    return data;
+}
