@@ -15,6 +15,7 @@ import Secure from "./middleware/Secure";
 import authRouter from "./routes/auth.router"
 import userRouter from "./routes/user.route"
 import stravaRouter from "./routes/strava.route"
+import trainingRouter from "./routes/training.route"
 
 //Controllers
 import authorized from "./controllers/me/authorized/authorized"
@@ -62,6 +63,7 @@ app.use('/logout', logout)
 //Routers protégé
 app.use('/user', userRouter)
 app.use("/strava", stravaRouter)
+app.use("/training", trainingRouter)
 
 
 

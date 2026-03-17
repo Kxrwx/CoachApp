@@ -22,6 +22,7 @@ model Users {
 
   //Strava
   userAuthStrava UserAuthStrava?
+  plannedWorkout PlannedWorkout[]
   
 }
 
@@ -194,4 +195,32 @@ model StravaActivityDetail {
   // Metadata
   device             String?  // Ex: "Garmin Edge 830"
   updatedAt          DateTime @updatedAt
+}
+
+//****************************
+// Shema Planning entrainement
+//******************************
+
+
+model PlannedWorkout {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String
+  description     String?
+  type            String   
+  duration        Int?     @default(0)
+  distance        Float?   
+  intensity       String?  
+  
+  // Gestion du temps
+  startDate       DateTime 
+  startTime       String? 
+  
+  // Récurrence (Optionnel)
+  isRecurring     Boolean  @default(false)
+  rrule           String?  
+  endDate         DateTime? 
+
+  createdAt       DateTime @default(now())
+  user            Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
