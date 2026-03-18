@@ -52,3 +52,12 @@ export async function UpsertTraining(
     },
   });
 }
+
+
+export async function DeleteTraining(id: string) {
+    const req = await prisma.plannedWorkout.delete({
+        where : {id}
+    })
+    return req
+    
+}
