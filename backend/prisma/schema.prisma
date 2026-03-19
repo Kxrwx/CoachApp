@@ -19,6 +19,7 @@ model Users {
 
   sessions     Sessions[]
   devices      Device[]
+  objectif Objectif[]
 
   //Strava
   userAuthStrava UserAuthStrava?
@@ -204,7 +205,7 @@ model StravaActivityDetail {
 
 model PlannedWorkout {
   id              String   @id @default(cuid())
-  userId          String
+  userId          String 
   title           String
   description     String?
   type            String   
@@ -220,6 +221,30 @@ model PlannedWorkout {
   isRecurring     Boolean  @default(false)
   rrule           String?  
   endDate         DateTime? 
+
+  createdAt       DateTime @default(now())
+  user            Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+
+//****************************
+// Shema objectif 
+//******************************
+
+model Objectif {
+  id              String   @id @default(cuid())
+  userId          String  @unique
+  W1h           Int?    
+  W20min         Int?  
+  W10min        Int?     
+  W5min        Int?   
+  W2min       Int?  
+  W1min       Int? 
+  W30s       Int? 
+  W3s     Int?
+  maxElevation           Int?  
+  maxDistance         Int? 
 
   createdAt       DateTime @default(now())
   user            Users    @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -13,6 +13,6 @@ export default async function User(req : AuthRequest, res : Response) {
         res.status(200).json(reponse)
     }
     catch(error){
-        res.status(500).json({error : "Erreur serveur"})
+        return res.status(500).json({error : "Erreur serveur"})
     }
 }
