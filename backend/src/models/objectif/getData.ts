@@ -21,3 +21,8 @@ export async function GetGoalAll(userId:string) {
     return req
 }
 
+
+export async function GetTemplates() {
+    const req = await prisma.metric.findMany()
+    return req
+}
