@@ -147,3 +147,28 @@ export async function upsertActivityDetailStrava(activityId: bigint, details: an
     });
 }
 
+export async function upsertRecordsStrava(stravaAthleteId: number, maxDistance: number, maxElevation: number, maxWatts: number, maxHeartrate: number, maxCadence : number) {
+    const req =  await prisma.stravaRecord.upsert({
+        where: {
+            stravaAthleteId
+        },
+        update: {
+            maxDistance,
+            maxElevation,
+            maxWatts,
+            maxHeartrate,
+            maxCadence
+
+        },
+        create: {
+            stravaAthleteId,
+            maxDistance,
+            maxElevation,
+            maxWatts,
+            maxHeartrate,
+            maxCadence
+        }
+    });
+    return req
+}
+

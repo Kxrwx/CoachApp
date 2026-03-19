@@ -102,6 +102,8 @@ model UserStrava {
   
   syncedAt          DateTime @default(now()) 
 
+
+  recordsStats StravaRecord?
   allTimeStats    StravaAllTimeStatsBike?
   yearlyStats     StravaYearlyStatsBike[]
   monthlyStats    StravaMonthlyStatsBike[]
@@ -115,6 +117,20 @@ model UserStrava {
 //****************************
 // Shema Data Strava
 //******************************
+
+model StravaRecord {
+  stravaAthleteId Int          @id @unique
+  stravaProfile   UserStrava   @relation(fields: [stravaAthleteId], references: [id], onDelete: Cascade)
+
+  maxDistance   Float  @default(0)
+  maxElevation  Float  @default(0)
+
+  maxWatts      Int    @default(0)
+  maxHeartrate  Int    @default(0)
+  maxCadence    Float  @default(0)
+  
+  updatedAt     DateTime @updatedAt
+}
 
 
 model StravaAllTimeStatsBike {
@@ -174,31 +190,23 @@ model StravaActivityDetail {
   // Relation 1-1 avec l'activité parente
   activityId         BigInt                  @unique
   activity           StravaRecentActivityBike @relation(fields: [activityId], references: [id], onDelete: Cascade)
-
-  // --- DONNÉES ÉLITES ---
-  
-  // Performance (Watts)
   avgWatts           Float?
   maxWatts           Int?
   weightedWatts      Float?   // Normalized Power
   kilojoules         Float?   // Énergie
   hasPower           Boolean  @default(false)
 
-  // Cardio
   avgHeartrate       Float?
   maxHeartrate       Int?
 
-  // Technique / Environnement
   avgCadence         Float?
   avgTemp            Int?
   elevHigh           Float?
   elevLow            Float?
   calories           Float?
   
-  // GPS (La trace pour la carte)
   polyline           String?  @db.Text
   
-  // Metadata
   device             String?  // Ex: "Garmin Edge 830"
   updatedAt          DateTime @updatedAt
 }
