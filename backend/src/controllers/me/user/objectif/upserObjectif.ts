@@ -39,6 +39,7 @@ export default async function UpsertObjectif(req: AuthRequest, res: Response) {
       }
     );
 
+
     return res.status(200).json(goal);
 
   } catch (error) {

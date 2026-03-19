@@ -1,24 +1,35 @@
 import prisma from "../../utils/prisma";
 
 
-export async function GetGoalAll(userId:string) {
-    const req = await prisma.goal.findMany({
-        where : {userId},
+export async function GetGoalAll(userId: string) {
+  const goals = await prisma.goal.findMany({
+    where: { userId },
+    include: {
+      targets: {
         include: {
-            targets: {
-                include: {
-                    metric: {
-                        select: {
-                            key: true,
-                            unit: true
-                                 }
-                            }
-                        }
-                    }
-                }
-        
-    })
-    return req
+          metric: {
+            select: {
+              id: true,
+              key: true,
+              unit: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const records = await prisma.computedMetric.findMany({
+    where: { userId, period: "all_time" }
+  });
+
+  return goals.map(goal => ({
+    ...goal,
+    targets: goal.targets.map(target => ({
+      ...target,
+      currentValue: records.find(r => r.metricKey === target.metric.key)?.value || 0
+    }))
+  }));
 }
 
 
