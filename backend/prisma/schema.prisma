@@ -19,10 +19,15 @@ model Users {
 
   sessions     Sessions[]
   devices      Device[]
-  objectif Objectif[]
+
+  //Objectif
+  goals        Goal[]
+  computedMetrics ComputedMetric[]
 
   //Strava
   userAuthStrava UserAuthStrava?
+
+  //Planning
   plannedWorkout PlannedWorkout[]
   
 }
@@ -232,20 +237,70 @@ model PlannedWorkout {
 // Shema objectif 
 //******************************
 
-model Objectif {
-  id              String   @id @default(cuid())
-  userId          String  @unique
-  W1h           Int?    
-  W20min         Int?  
-  W10min        Int?     
-  W5min        Int?   
-  W2min       Int?  
-  W1min       Int? 
-  W30s       Int? 
-  W3s     Int?
-  maxElevation           Int?  
-  maxDistance         Int? 
+model Goal {
+  id          String   @id @default(cuid())
+  userId      String
 
-  createdAt       DateTime @default(now())
-  user            Users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String?  // ex: "200km ride"
+  type        String   // endurance, power, volume, custom
+
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+
+  user        Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  targets     GoalTarget[]
+
+  @@index([userId, isActive])
+}
+
+
+
+model Metric {
+  id    String @id @default(cuid())
+  key   String @unique // "longest_ride", "weekly_distance", "ftp"
+
+  unit  String         // "km", "watts"
+
+  aggregationType String // max, sum, avg
+  scope           String // activity, week, month, all_time
+
+  targets GoalTarget[]
+}
+
+
+model GoalTarget {
+  id          String @id @default(cuid())
+
+  goalId      String
+  metricId    String
+
+  targetValue Float
+
+  goal        Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  metric      Metric @relation(fields: [metricId], references: [id])
+
+  @@index([goalId])
+}
+
+
+model ComputedMetric {
+  id         String   @id @default(cuid())
+  userId     String
+
+  metricKey  String   // ex: "longest_ride"
+  value      Float
+
+  period     String   // all_time, week, month, etc.
+
+  updatedAt  DateTime @updatedAt
+
+  user       Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metricKey, period])
+  @@index([userId, metricKey])
 }

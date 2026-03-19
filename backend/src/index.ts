@@ -16,6 +16,7 @@ import authRouter from "./routes/auth.router"
 import userRouter from "./routes/user.route"
 import stravaRouter from "./routes/strava.route"
 import trainingRouter from "./routes/training.route"
+import goalRouter from './routes/goal.router'
 
 //Controllers
 import authorized from "./controllers/me/authorized/authorized"
@@ -64,6 +65,7 @@ app.use('/logout', logout)
 app.use('/user', userRouter)
 app.use("/strava", stravaRouter)
 app.use("/training", trainingRouter)
+app.use("/goal", goalRouter)
 
 
 
