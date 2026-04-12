@@ -1,0 +1,55 @@
+# --- Dependencies ---
+**/node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# --- Build & Output ---
+**/dist/
+**/.next/
+**/out/
+**/build/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Secrets & Config ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+# On ignore tous les .env par sécurité
+**/.env*
+
+# --- Databases (Prisma) ---
+/backend/prisma/*.db
+/backend/prisma/*.db-journal
+
+# --- Debug & Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+**/logs/
+*.log
+
+# --- OS Files ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+*.pem
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Vercel ---
+.vercel
