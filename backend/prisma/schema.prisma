@@ -1,9 +1,267 @@
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- CORE USER & AUTH ---
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  mfaEnabled   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  sessions        Session[]
+  devices         Device[]
+  integrations    Integration[]
+  activities      Activity[]
+  plannedWorkouts PlannedWorkout[]
+  goals           Goal[]
+  computedMetrics ComputedMetric[]
+  personalRecords PersonalRecord[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  lastSeen  DateTime @updatedAt
+  expiredAt DateTime
+  revoked   Boolean  @default(false)
+}
+
+model Device {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprintHash String
+  deviceName     String?
+  trusted        Boolean   @default(false)
+  trustedUntil   DateTime?
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @updatedAt
+}
+
+// --- INTEGRATIONS & STRAVA DATA ---
+
+model Integration {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // e.g., "STRAVA"
+  externalUserId String
+  accessToken    String
+  refreshToken   String
+  expiresAt      DateTime
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  usersStrava    UsersStrava?
+}
+
+model UsersStrava {
+  id            String      @id @default(uuid())
+  integrationId String      @unique
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  stravaAuth    String?
+  firstname     String?
+  lastname      String?
+  profilePicture String?
+  city          String?
+  state         String?
+  country       String?
+  sex           String?
+  syncedAt      DateTime    @default(now())
+
+  stravaStats   StravaStats[]
+  stravaActivities StravaActivity[]
+}
+
+model StravaStats {
+  id            String      @id @default(uuid())
+  userId        String      // Relation directe optionnelle ou via UsersStrava
+  userStrava    UsersStrava @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodType    String      // weekly, monthly, yearly, all
+  periodStart   DateTime?
+  periodEnd     DateTime?
+  distance      Float
+  count         Int
+  elevation     Float
+  avgWatts      Float?
+  maxWatts      Float?
+  updatedAt     DateTime    @updatedAt
+}
+
+// --- ACTIVITIES & STORAGE ---
+
+model Activity {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idStrava   String?  @unique
+  idUpload   String?  @unique
+  
+  // Relations vers les détails
+  stravaDetail StravaActivity? @relation(fields: [idStrava], references: [id])
+  uploadDetail UploadActivity? @relation(fields: [idUpload], references: [id])
+}
+
+model StravaActivity {
+  id             String   @id @default(uuid())
+  userStravaId   String
+  userStrava     UsersStrava @relation(fields: [userStravaId], references: [id])
+  name           String
+  distance       Float
+  avgWatts       Float?
+  maxWatts       Float?
+  weightedWatts  Float?
+  kilojoules     Float?
+  hasPower       Boolean
+  avgHeartrate   Float?
+  maxHeartrate   Float?
+  avgCadence     Float?
+  avgTemp        Float?
+  elevHigh       Float?
+  elevLow        Float?
+  calories       Float?
+  dataId         String?
+  device         String?
+  updatedAt      DateTime @updatedAt
+  movingTime     Int
+  elapsedTime    Int
+  totalElevationGain Float
+  type           String
+  startDate      DateTime
+
+  // Relation vers stockage
+  activity       Activity?
+  storage        StorageMetadata[]
+}
+
+model UploadActivity {
+  id     String @id @default(uuid())
+  dataId String
+  
+  activity Activity?
+  storage  StorageMetadata[]
+}
+
+model StorageMetadata {
+  id               String   @id @default(uuid())
+  r2Key            String   @unique
+  mimeType         String
+  fileSize         Int
+  createdAt        DateTime @default(now())
+  
+  stravaActivityId String?
+  stravaActivity   StravaActivity? @relation(fields: [stravaActivityId], references: [id])
+  uploadActivityId String?
+  uploadActivity   UploadActivity? @relation(fields: [uploadActivityId], references: [id])
+}
+
+// --- PLANNING & GOALS ---
+
+model PlannedWorkout {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  type        String
+  duration    Int?     // in minutes
+  distance    Float?   // in meters
+  intensity   String?
+  startDate   DateTime
+  startTime   String?
+  isRecurring Boolean  @default(false)
+  rrule       String?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Goal {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  targets   GoalTarget[]
+}
+
+model GoalTarget {
+  id          String @id @default(uuid())
+  goalId      String
+  goal        Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  metricId    String
+  metric      Metric @relation(fields: [metricId], references: [id])
+  targetValue Float
+}
+
+// --- METRICS & RECORDS ---
+
+model Metric {
+  id              String   @id @default(uuid())
+  key             String   @unique // e.g., "ftp", "weight", "vo2max"
+  name            String
+  unit            String
+  aggregationType String?
+  scope           String?
+
+  goalTargets     GoalTarget[]
+  computedMetrics ComputedMetric[]
+  personalRecords PersonalRecord[]
+}
+
+model ComputedMetric {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metricKey String
+  metric    Metric   @relation(fields: [metricKey], references: [key])
+  value     Float
+  period    String
+  updatedAt DateTime @updatedAt
+}
+
+model PersonalRecord {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metricId           String
+  metric             Metric   @relation(fields: [metricId], references: [id])
+  value              Float
+  achievedAt         DateTime
+  period             String?
+  sourceType         String?  // e.g., "STRAVA", "MANUAL"
+  isManualValidated  Boolean  @default(false)
+}
+
+// --- WEBHOOKS ---
+
+model WebhookStrava {
+  id               String   @id @default(uuid())
+  userStravaId     String
+  stravaActivityId String?
+  aspectType       String
+  rawPayload       Json
+  status           String
+  createdAt        DateTime @default(now())
 }

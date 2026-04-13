@@ -2,11 +2,13 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "types": ["node"],
     "target": "ES2023",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",   
     "removeComments": true,
     "noImplicitAny": false,
     "strictNullChecks": true,
@@ -18,5 +20,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],   
+  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }
