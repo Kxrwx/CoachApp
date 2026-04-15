@@ -46,7 +46,9 @@ const syncUser = useCallback(async () => {
 
 
   const logout = useCallback(async () => {
+  try {
   await api('/auth/logout', { method: 'POST' });
+} catch {}
 
   setAccessToken(null);
   setUser(null);

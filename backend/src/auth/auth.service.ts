@@ -22,8 +22,10 @@ export class AuthService {
   async signIn(email: string, pass: string, ip: string, userAgent: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(pass, user.passwordHash))) {
+      console.warn(`[AUTH] Failed login for ${email} from ${ip}`);
       throw new UnauthorizedException('Identifiants incorrects');
     }
+
     return this.generateTokens(user.id, user.email, ip, userAgent);
   }
 
@@ -48,6 +50,7 @@ export class AuthService {
 
     if (targetHash.length !== storedHash.length || !timingSafeEqual(storedHash, targetHash)) {
       await this.prisma.session.update({ where: { id: sid }, data: { revoked: true } });
+      console.warn(`[AUTH] Refresh token invalid for session ${sid}`);
       throw new ForbiddenException('Alerte sécurité : Rotation compromise');
     }
 

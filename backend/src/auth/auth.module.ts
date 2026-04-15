@@ -12,7 +12,7 @@ if (!process.env.JWT_SECRET) {
   imports: [
     ThrottlerModule.forRoot([{
       ttl: 60000, 
-      limit: 10,  
+      limit: 5,  
     }]),
     JwtModule.register({
       global: true,
