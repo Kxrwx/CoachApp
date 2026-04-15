@@ -82,12 +82,11 @@ export function triggerLogout(reason: string) {
   setAccessToken(null);
 
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new CustomEvent('auth-logout', {
-        detail: { reason },
-      })
-    );
 
-    window.location.href = `/auth?reason=${reason}`;
+    const isAuthPage = window.location.pathname.startsWith('/auth');
+
+    if (!isAuthPage) {
+      window.location.href = `/auth?reason=${reason}`;
+    }
   }
 }

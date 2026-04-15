@@ -55,16 +55,27 @@ const syncUser = useCallback(async () => {
 
   window.location.href = '/auth';
 }, []);
-  const handleGlobalLogout = useCallback((e: any) => {
-    const reason = e.detail?.reason || 'session_ended';
-    console.log(`AuthContext: Logout global déclenché (Raison: ${reason})`);
-    
-    setUser(null);
+const handleGlobalLogout = useCallback((e: any) => {
+  const reason = e.detail?.reason || 'session_ended';
+
+  const isAuthPage = window.location.pathname.startsWith('/auth');
+
+  setUser(null);
+
+  if (!isAuthPage) {
     window.location.href = `/auth?reason=${reason}`;
-  }, []);
+  }
+}, []);
 
   useEffect(() => {
-  syncUser();
+  const isAuthPage = window.location.pathname.startsWith('/auth');
+
+  if (!isAuthPage) {
+    syncUser();
+  } else {
+    setLoading(false);
+  }
+
 
   window.addEventListener('auth-sync', syncUser);
   window.addEventListener('auth-logout', handleGlobalLogout as EventListener);
