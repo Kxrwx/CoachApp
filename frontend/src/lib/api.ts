@@ -27,6 +27,8 @@ export async function api(endpoint: string, options: RequestInit = {}) {
   });
 
   if (response.status === 401 && endpoint !== '/auth/refresh'){
+
+
     if (!refreshPromise) {
       refreshPromise = performRefresh().finally(() => {
         refreshPromise = null;

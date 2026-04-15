@@ -64,21 +64,16 @@ const syncUser = useCallback(async () => {
   }, []);
 
   useEffect(() => {
-    syncUser();
+  syncUser();
 
-    window.addEventListener('auth-sync', syncUser);
+  window.addEventListener('auth-sync', syncUser);
+  window.addEventListener('auth-logout', handleGlobalLogout as EventListener);
 
-    window.addEventListener('auth-logout', handleGlobalLogout as EventListener);
-
-    window.addEventListener('storage', syncUser);
-
-    return () => {
-      window.removeEventListener('auth-sync', syncUser);
-      window.removeEventListener('auth-logout', handleGlobalLogout as EventListener);
-      window.removeEventListener('storage', syncUser);
-    };
-  }, [syncUser, handleGlobalLogout]);
-
+  return () => {
+    window.removeEventListener('auth-sync', syncUser);
+    window.removeEventListener('auth-logout', handleGlobalLogout as EventListener);
+  };
+}, [syncUser, handleGlobalLogout]);
   return (
     <AuthContext.Provider value={{ 
       user, 

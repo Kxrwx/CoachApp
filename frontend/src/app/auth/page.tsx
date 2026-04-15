@@ -38,13 +38,16 @@ export default function AuthPage() {
       throw new Error(data.message || 'Une erreur est survenue');
     }
 
-    // ✅ stocké uniquement en mémoire
-    setAccessToken(data.access_token);
 
-    // 🔥 trigger sync global
-    window.dispatchEvent(new Event('auth-sync'));
+setAccessToken(data.access_token);
 
-    router.push('/');
+await fetch(`${BACKEND_URL}/auth/me`, {
+  credentials: 'include',
+}).then(res => res.json()).then(data => {
+  window.dispatchEvent(new Event('auth-sync'));
+});
+
+router.push('/');
     router.refresh();
 
   } catch (err: any) {
