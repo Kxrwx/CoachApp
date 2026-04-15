@@ -1,14 +1,14 @@
-import Cookies from 'js-cookie';
+let accessToken: string | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
-
-let refreshPromise: Promise<boolean> | null = null;
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
 
 export async function api(endpoint: string, options: RequestInit = {}) {
   const url = `${BACKEND_URL}${endpoint}`;
-  const token = Cookies.get('access_token');
-
 
   const headers = new Headers(options.headers);
 
@@ -16,26 +16,19 @@ export async function api(endpoint: string, options: RequestInit = {}) {
     headers.set('Content-Type', 'application/json');
   }
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
   let response = await fetch(url, {
     ...options,
     headers,
+    credentials: 'include', 
   });
 
-
-  if (response.status === 401) {
-    const refreshToken = localStorage.getItem('refresh_token');
-
-    if (!refreshToken) {
-      triggerLogout('NO_REFRESH_TOKEN');
-      return response;
-    }
-
+  if (response.status === 401 && endpoint !== '/auth/refresh'){
     if (!refreshPromise) {
-      refreshPromise = performRefresh(refreshToken).finally(() => {
+      refreshPromise = performRefresh().finally(() => {
         refreshPromise = null;
       });
     }
@@ -47,46 +40,33 @@ export async function api(endpoint: string, options: RequestInit = {}) {
       return response;
     }
 
-    const newToken = Cookies.get('access_token');
-
     const retryHeaders = new Headers(headers);
-    if (newToken) {
-      retryHeaders.set('Authorization', `Bearer ${newToken}`);
+    if (accessToken) {
+      retryHeaders.set('Authorization', `Bearer ${accessToken}`);
     }
 
-    const retryableMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-    const method = options.method?.toUpperCase() || 'GET';
-
-    if (retryableMethods.includes(method)) {
-      return fetch(url, {
-        ...options,
-        headers: retryHeaders,
-      });
-    }
+    return fetch(url, {
+      ...options,
+      headers: retryHeaders,
+      credentials: 'include',
+    });
   }
 
   return response;
 }
 
-async function performRefresh(rt: string): Promise<boolean> {
+async function performRefresh(): Promise<boolean> {
   try {
     const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: rt }),
+      credentials: 'include',
     });
 
     if (!res.ok) return false;
 
     const data = await res.json();
 
-    Cookies.set('access_token', data.access_token, {
-      expires: 7,
-      sameSite: 'strict',
-    });
-
-    localStorage.setItem('refresh_token', data.refresh_token);
-    localStorage.setItem('auth_sync', Date.now().toString());
+    setAccessToken(data.access_token);
 
     window.dispatchEvent(new Event('auth-sync'));
 
@@ -96,10 +76,8 @@ async function performRefresh(rt: string): Promise<boolean> {
   }
 }
 
-
 export function triggerLogout(reason: string) {
-  Cookies.remove('access_token');
-  localStorage.removeItem('refresh_token');
+  setAccessToken(null);
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(

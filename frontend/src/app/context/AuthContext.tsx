@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
+import { api, setAccessToken } from '@/lib/api';
 
 interface User { 
   id: string; 
@@ -24,54 +25,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const syncUser = useCallback(() => {
-    const token = Cookies.get('access_token');
-    
-    if (!token) {
+const syncUser = useCallback(async () => {
+  try {
+    const res = await api('/auth/me');
+
+    if (!res.ok) {
       setUser(null);
-      setLoading(false);
       return;
     }
 
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(
-  decodeURIComponent(
-    atob(base64)
-      .split('')
-      .map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-      .join('')
-  )
-);
+    const data = await res.json();
 
-      const isExpired = payload.exp * 1000 < Date.now();
-
-      if (isExpired) {
-        console.warn("AuthContext: Token expiré");
-        setUser(null);
-      } else {
-        setUser({ 
-          id: payload.sub, 
-          email: payload.email 
-        });
-      }
-    } catch (error) {
-      console.error("AuthContext: Erreur de décodage token", error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-
-  const logout = useCallback(() => {
-    Cookies.remove('access_token');
-    localStorage.removeItem('refresh_token');
+    setUser(data.user);
+  } catch {
     setUser(null);
-    window.location.href = '/auth?reason=manual_logout';
-  }, []);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
+
+  const logout = useCallback(async () => {
+  await api('/auth/logout', { method: 'POST' });
+
+  setAccessToken(null);
+  setUser(null);
+
+  window.location.href = '/auth';
+}, []);
   const handleGlobalLogout = useCallback((e: any) => {
     const reason = e.detail?.reason || 'session_ended';
     console.log(`AuthContext: Logout global déclenché (Raison: ${reason})`);

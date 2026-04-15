@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie';
+import { setAccessToken } from '@/lib/api';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -15,54 +15,44 @@ export default function AuthPage() {
     pass: '',
   });
 
-  // Utilisation de NEXT_PUBLIC pour le client
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    const endpoint = isLogin ? '/auth/signin' : '/auth/signup';
+  const endpoint = isLogin ? '/auth/signin' : '/auth/signup';
 
-    try {
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+  try {
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+      credentials: 'include', // 🔥 CRUCIAL
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Une erreur est survenue');
-      }
-
-      // --- STOCKAGE HYBRIDE ---
-      
-      // 1. On stocke l'access_token dans un COOKIE 
-      // C'est ce qui permet au Middleware de protéger tes routes côté serveur
-      Cookies.set('access_token', data.access_token, { 
-        expires: 7, // expire dans 7 jours (calqué sur ta session DB)
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict'
-      });
-
-      // 2. On stocke le refresh_token dans le localStorage
-      // Il servira uniquement au client pour régénérer l'access_token
-      localStorage.setItem('refresh_token', data.refresh_token);
-
-      // --- REDIRECTION ---
-      // On redirige vers l'accueil (qui est protégé par le middleware)
-      router.push('/'); 
-      router.refresh(); 
-      
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(data.message || 'Une erreur est survenue');
     }
-  };
+
+    // ✅ stocké uniquement en mémoire
+    setAccessToken(data.access_token);
+
+    // 🔥 trigger sync global
+    window.dispatchEvent(new Event('auth-sync'));
+
+    router.push('/');
+    router.refresh();
+
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#0f172a] px-4 font-sans text-slate-200">
