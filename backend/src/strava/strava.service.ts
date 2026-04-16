@@ -95,20 +95,28 @@ export class StravaService {
 async unlinkAccount(userId: string) {
   try {
     await this.prisma.$transaction(async (tx) => {
+
       const integration = await tx.integration.findUnique({
         where: { userId_provider: { userId, provider: 'STRAVA' } },
+        include: { usersStrava: true } 
       });
 
-      if (!integration) {
+      if (!integration || !integration.usersStrava) {
         throw new BadRequestException("Compte Strava non lié");
       }
 
-      await tx.usersStrava.deleteMany({
-        where: { integrationId: integration.id },
+      const userStravaId = integration.usersStrava.id;
+
+      await tx.stravaActivity.deleteMany({
+        where: { userStravaId: userStravaId }
       });
 
       await tx.stravaStats.deleteMany({
-        where: { userId: integration.userId },
+        where: { userId: userStravaId },
+      });
+
+      await tx.usersStrava.delete({
+        where: { id: userStravaId },
       });
 
       await tx.integration.delete({
@@ -118,96 +126,164 @@ async unlinkAccount(userId: string) {
 
     return { success: true };
   } catch (error) {
+    console.error(error);
     if (error instanceof BadRequestException) throw error;
     throw new BadRequestException("Échec de la déliaison avec Strava");
   }
 }
 
+private round(val: number, decimals: number = 2): number {
+    return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  }
+
 private async syncStatsStrava(stravaAthleteId: string | number) {
   try {
+    const now = new Date();
+
     const userStrava = await this.prisma.usersStrava.findFirst({
-      where: { 
-        integration: { 
-          externalUserId: String(stravaAthleteId), 
-          provider: 'STRAVA' 
-        } 
+      where: {
+        integration: {
+          externalUserId: String(stravaAthleteId),
+          provider: 'STRAVA',
+        },
       },
       include: { integration: true },
     });
 
-    if (!userStrava || !userStrava.integration) return;
+    if (!userStrava?.integration) return;
 
-    const statsToSave: PendingStat[] = [];
+    const { accessToken, externalUserId } = userStrava.integration;
 
-    // --- ALL TIME (API Strava) ---
+    // =====================================
+    // 1. FETCH ALL ACTIVITIES (PAGINATION)
+    // =====================================
+    const allActivities: any[] = [];
+    let page = 1;
+
+    while (true) {
+      const { data } = await axios.get(
+        `https://www.strava.com/api/v3/athlete/activities`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: { per_page: 200, page },
+        }
+      );
+
+      if (!data.length) break;
+
+      allActivities.push(...data);
+      page++;
+    }
+
+    if (allActivities.length === 0) return;
+
+    // =====================================
+    // 2. FETCH GLOBAL STATS (API)
+    // =====================================
     const { data: stravaApiData } = await axios.get(
-      `https://www.strava.com/api/v3/athletes/${userStrava.integration.externalUserId}/stats`,
-      { headers: { Authorization: `Bearer ${userStrava.integration.accessToken}` } }
+      `https://www.strava.com/api/v3/athletes/${externalUserId}/stats`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
     );
 
+    // =====================================
+    // 3. AGGREGATION IN MEMORY
+    // =====================================
+    const statsMap = new Map<
+      string,
+      { distance: number; elevation: number; count: number }
+    >();
+
+    const ensure = (key: string) => {
+      if (!statsMap.has(key)) {
+        statsMap.set(key, { distance: 0, elevation: 0, count: 0 });
+      }
+      return statsMap.get(key)!;
+    };
+
+    for (const act of allActivities) {
+      if (!['Ride', 'VirtualRide'].includes(act.type)) continue;
+
+      const d = new Date(act.start_date);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+
+      const yearKey = `year_${year}`;
+      const monthKey = `month_${year}_${month}`;
+
+      const targets = [ensure(yearKey), ensure(monthKey)];
+
+      for (const t of targets) {
+        t.distance += act.distance || 0;
+        t.elevation += act.total_elevation_gain || 0;
+        t.count += 1;
+      }
+    }
+
+    // =====================================
+    // 4. BUILD STATS
+    // =====================================
+    const statsToSave: PendingStat[] = [];
+
+    // ALL TIME (API)
     statsToSave.push({
       type: 'ride_all',
       data: {
-        distance: stravaApiData.all_ride_totals.distance || 0,
+        distance: this.round((stravaApiData.all_ride_totals.distance || 0) / 1000),
         count: stravaApiData.all_ride_totals.count || 0,
-        elevation: stravaApiData.all_ride_totals.elevation_gain || 0,
-      }
+        elevation: this.round(stravaApiData.all_ride_totals.elevation_gain || 0),
+      },
     });
 
-    // --- 13 DERNIERS MOIS (Agrégation DB) ---
+    // CURRENT YEAR (API)
+    statsToSave.push({
+      type: `year_${now.getFullYear()}`,
+      periodStart: startOfYear(now),
+      data: {
+        distance: this.round((stravaApiData.ytd_ride_totals.distance || 0) / 1000),
+        count: stravaApiData.ytd_ride_totals.count || 0,
+        elevation: this.round(stravaApiData.ytd_ride_totals.elevation_gain || 0),
+      },
+    });
+
+    // LAST 13 MONTHS
     for (let i = 0; i < 13; i++) {
-      const date = subMonths(new Date(), i);
-      const start = startOfMonth(date);
-      const end = i === 0 ? new Date() : startOfMonth(subMonths(date, -1));
-
-      const aggregate = await this.prisma.stravaActivity.aggregate({
-        where: {
-          userStravaId: userStrava.id,
-          type: 'Ride',
-          startDate: { gte: start, lt: end },
-        },
-        _sum: { distance: true, totalElevationGain: true },
-        _count: { id: true },
-      });
+      const date = subMonths(now, i);
+      const key = `month_${date.getFullYear()}_${date.getMonth() + 1}`;
+      const stat = statsMap.get(key);
 
       statsToSave.push({
-        type: `month_${start.getFullYear()}_${start.getMonth() + 1}`,
-        periodStart: start,
+        type: key,
+        periodStart: startOfMonth(date),
         data: {
-          distance: aggregate._sum.distance || 0,
-          count: aggregate._count.id || 0,
-          elevation: aggregate._sum.totalElevationGain || 0,
-        }
+          distance: this.round((stat?.distance || 0) / 1000),
+          count: stat?.count || 0,
+          elevation: this.round(stat?.elevation || 0),
+        },
       });
     }
 
-    // --- 5 DERNIÈRES ANNÉES (Agrégation DB) ---
-    for (let i = 0; i < 5; i++) {
-      const date = subYears(new Date(), i);
-      const start = startOfYear(date);
-      const end = i === 0 ? new Date() : startOfYear(subYears(date, -1));
-
-      const aggregate = await this.prisma.stravaActivity.aggregate({
-        where: {
-          userStravaId: userStrava.id,
-          type: 'Ride',
-          startDate: { gte: start, lt: end },
-        },
-        _sum: { distance: true, totalElevationGain: true },
-        _count: { id: true },
-      });
+    // LAST 5 YEARS
+    for (let i = 1; i < 5; i++) {
+      const date = subYears(now, i);
+      const key = `year_${date.getFullYear()}`;
+      const stat = statsMap.get(key);
 
       statsToSave.push({
-        type: `year_${start.getFullYear()}`,
-        periodStart: start,
+        type: key,
+        periodStart: startOfYear(date),
         data: {
-          distance: aggregate._sum.distance || 0,
-          count: aggregate._count.id || 0,
-          elevation: aggregate._sum.totalElevationGain || 0,
-        }
+          distance: this.round((stat?.distance || 0) / 1000),
+          count: stat?.count || 0,
+          elevation: this.round(stat?.elevation || 0),
+        },
       });
     }
 
+    // =====================================
+    // 5. SAVE STATS
+    // =====================================
     await this.prisma.$transaction(
       statsToSave.map((stat) =>
         this.prisma.stravaStats.upsert({
@@ -232,13 +308,42 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       )
     );
 
-    await this.prisma.usersStrava.update({
-      where: { id: userStrava.id },
-      data: { syncedAt: new Date() },
-    });
+    // =====================================
+    // 6. KEEP ONLY LAST 50 ACTIVITIES
+    // =====================================
+    const latest = allActivities
+      .sort(
+        (a, b) =>
+          new Date(b.start_date).getTime() -
+          new Date(a.start_date).getTime()
+      )
+      .slice(0, 50);
+
+    await this.prisma.$transaction([
+      this.prisma.stravaActivity.deleteMany({
+        where: { userStravaId: userStrava.id },
+      }),
+      ...latest.map((activity) =>
+        this.prisma.stravaActivity.create({
+          data: {
+            id: String(activity.id),
+            userStravaId: userStrava.id,
+            name: activity.name,
+            distance: activity.distance,
+            movingTime: activity.moving_time,
+            elapsedTime: activity.elapsed_time,
+            totalElevationGain: activity.total_elevation_gain,
+            type: activity.type,
+            startDate: new Date(activity.start_date),
+            hasPower: activity.device_watts || false,
+            avgWatts: activity.average_watts || 0,
+          },
+        })
+      ),
+    ]);
 
   } catch (error) {
-    console.error(`[StravaStats] Erreur:`, error);
+    console.error(`[Strava First Sync Error]`, error);
   }
 }
 }
