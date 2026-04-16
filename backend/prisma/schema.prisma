@@ -100,15 +100,20 @@ model StravaStats {
 }
 
 model Activity {
-  id           String          @id @default(uuid())
-  userId       String
-  idStrava     String?         @unique
-  idUpload     String?         @unique
-  stravaDetail StravaActivity? @relation(fields: [idStrava], references: [id])
-  uploadDetail UploadActivity? @relation(fields: [idUpload], references: [id])
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+  id        String   @id @default(uuid())
+  userId    String
 
+  idStrava  String?
+  idUpload String? @unique
+
+  startDate DateTime
+  createdAt DateTime @default(now())
+
+  uploadDetail UploadActivity? @relation(fields: [idUpload], references: [id])
+  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idStrava])
+}
 model StravaActivity {
   id                 String            @id @default(uuid())
   userStravaId       String
@@ -134,7 +139,6 @@ model StravaActivity {
   totalElevationGain Float
   type               String
   startDate          DateTime
-  activity           Activity?
   storage            StorageMetadata[]
   userStrava         UsersStrava       @relation(fields: [userStravaId], references: [id])
 }

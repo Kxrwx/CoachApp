@@ -2,7 +2,24 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
 import { startOfMonth, startOfYear, subMonths, subYears } from 'date-fns';
+import { Prisma } from '@prisma/client';
 
+type UsersStravaWithIntegration = Prisma.UsersStravaGetPayload<{
+  include: { integration: true };
+}>;
+
+type StravaRawActivity = {
+  id: string;
+  name: string;
+  distance: number;
+  moving_time: number;
+  elapsed_time: number;
+  total_elevation_gain: number;
+  type: string;
+  start_date: string;
+  device_watts?: boolean;
+  average_watts?: number;
+};
 
 interface PendingStat {
   type: string;
@@ -98,27 +115,47 @@ async unlinkAccount(userId: string) {
 
       const integration = await tx.integration.findUnique({
         where: { userId_provider: { userId, provider: 'STRAVA' } },
-        include: { usersStrava: true } 
+        include: { usersStrava: true },
       });
 
-      if (!integration || !integration.usersStrava) {
+      if (!integration?.usersStrava) {
         throw new BadRequestException("Compte Strava non lié");
       }
 
-      const userStravaId = integration.usersStrava.id;
+      const usersStravaId = integration.usersStrava.id;
 
+      // =====================================
+      // 1. CLEAN STRAVA ACTIVITY
+      // =====================================
       await tx.stravaActivity.deleteMany({
-        where: { userStravaId: userStravaId }
+        where: { userStravaId: usersStravaId },
       });
 
+      // =====================================
+      // 2. CLEAN STATS
+      // =====================================
       await tx.stravaStats.deleteMany({
-        where: { userId: userStravaId },
+        where: { userId: usersStravaId },
       });
 
+      // =====================================
+      // 3. CLEAN LINKS IN ACTIVITY 
+      // =====================================
+      await tx.activity.updateMany({
+        where: { idStrava: { not: null } },
+        data: { idStrava: null },
+      });
+
+      // =====================================
+      // 4. DELETE USER STRAVA PROFILE
+      // =====================================
       await tx.usersStrava.delete({
-        where: { id: userStravaId },
+        where: { id: usersStravaId },
       });
 
+      // =====================================
+      // 5. DELETE INTEGRATION
+      // =====================================
       await tx.integration.delete({
         where: { id: integration.id },
       });
@@ -131,7 +168,6 @@ async unlinkAccount(userId: string) {
     throw new BadRequestException("Échec de la déliaison avec Strava");
   }
 }
-
 private round(val: number, decimals: number = 2): number {
     return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
@@ -342,8 +378,162 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       ),
     ]);
 
+    await this.upsertStravaActivities(userStrava, allActivities);
+
   } catch (error) {
     console.error(`[Strava First Sync Error]`, error);
   }
+}
+
+private async upsertStravaActivities(
+  userStrava: UsersStravaWithIntegration,
+  activities: any[]
+) {
+  if (!activities?.length) return;
+
+  const userId = userStrava.integration.userId;
+
+  // =====================================
+  // 1. LOAD EXISTING
+  // =====================================
+  const existing = await this.prisma.activity.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      idStrava: true,
+      startDate: true,
+    },
+  });
+
+  const byStravaId = new Map<string, typeof existing[number]>();
+  const byDate = new Map<string, typeof existing[number]>();
+
+  for (const a of existing) {
+    if (a.idStrava) byStravaId.set(a.idStrava, a);
+
+    const key = new Date(a.startDate).toISOString().slice(0, 10);
+    byDate.set(key, a);
+  }
+
+  // =====================================
+  // 2. BUILD ACTIONS (SAFE)
+  // =====================================
+  const toCreateActivities: any[] = [];
+  const linkUpdates: any[] = [];
+  const stravaWrites: any[] = [];
+
+  for (const rawAct of activities) {
+    if (!rawAct?.id || !rawAct?.start_date) continue;
+
+    const act = rawAct; // safe alias
+    const stravaId = String(act.id);
+    const dateKey = new Date(act.start_date).toISOString().slice(0, 10);
+
+    const byId = byStravaId.get(stravaId);
+    const byDateMatch = byDate.get(dateKey);
+
+    // CASE 1 — already linked by Strava ID
+    if (byId) {
+      stravaWrites.push({
+        id: stravaId,
+        act,
+        link: byId.id,
+      });
+      continue;
+    }
+
+    // CASE 2 — match by date → link existing Activity
+    if (byDateMatch) {
+      linkUpdates.push({
+        activityId: byDateMatch.id,
+        stravaId,
+      });
+
+      stravaWrites.push({
+        id: stravaId,
+        act,
+        link: byDateMatch.id,
+      });
+
+      continue;
+    }
+
+    // CASE 3 — new Activity
+    toCreateActivities.push({
+      userId,
+      idStrava: stravaId,
+      startDate: new Date(act.start_date),
+    });
+
+    stravaWrites.push({
+      id: stravaId,
+      act,
+      link: null,
+    });
+  }
+
+  // =====================================
+  // 3. CREATE MISSING ACTIVITIES
+  // =====================================
+  if (toCreateActivities.length > 0) {
+    await this.prisma.activity.createMany({
+      data: toCreateActivities,
+      skipDuplicates: true,
+    });
+  }
+
+  // =====================================
+  // 4. APPLY LINKS (Activity ← StravaId)
+  // =====================================
+  if (linkUpdates.length > 0) {
+    await this.prisma.$transaction(
+      linkUpdates.map((l) =>
+        this.prisma.activity.update({
+          where: { id: l.activityId },
+          data: { idStrava: l.stravaId },
+        })
+      )
+    );
+  }
+
+  // =====================================
+  // 5. UPSERT STRAVA ACTIVITY
+  // =====================================
+  await this.prisma.$transaction(
+    stravaWrites
+      .filter((w) => w?.act?.id) // 🔥 safety guard
+      .map((w) =>
+        this.prisma.stravaActivity.upsert({
+          where: { id: w.id },
+
+          update: {
+            name: w.act.name,
+            distance: w.act.distance,
+            movingTime: w.act.moving_time,
+            elapsedTime: w.act.elapsed_time,
+            totalElevationGain: w.act.total_elevation_gain,
+            type: w.act.type,
+            startDate: new Date(w.act.start_date),
+            hasPower: !!w.act.device_watts,
+            avgWatts: w.act.average_watts ?? 0,
+          },
+
+          create: {
+            id: w.id,
+            userStravaId: userStrava.id,
+
+            name: w.act.name,
+            distance: w.act.distance,
+            movingTime: w.act.moving_time,
+            elapsedTime: w.act.elapsed_time,
+            totalElevationGain: w.act.total_elevation_gain,
+            type: w.act.type,
+            startDate: new Date(w.act.start_date),
+            hasPower: !!w.act.device_watts,
+            avgWatts: w.act.average_watts ?? 0,
+          },
+        })
+      )
+  );
 }
 }
