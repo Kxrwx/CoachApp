@@ -80,14 +80,41 @@ export class AuthController {
   // --- ME ---
   @UseGuards(AuthGuard)
   @Get('me')
-  getMe(@Req() req: any) {
-    return {
-      user: {
-        id: req.user.sub,
-        email: req.user.email,
-      },
+  async getMe(@Req() req: any) {
+    const userId = req.user.sub;
+    
+    const user = await this.authService.getMe(userId);
+    
+    return { user };
+  }
+
+  // --- UPDATE ME ---
+@UseGuards(ThrottlerGuard)
+@UseGuards(AuthGuard)
+@Post('update')
+async updateMe(
+  @Req() req: any,
+  @Body() body: { password?: string; mfaEnabled?: boolean },
+  @Res({ passthrough: true }) res: Response
+) {
+  const userId = req.user.sub;
+
+  await this.authService.updateMe(userId, {
+    password: body.password,
+    mfaEnabled: body.mfaEnabled,
+  });
+
+  if (body.password) {
+    await this.authService.logout(req.user.sid);
+    res.clearCookie('refresh_token', { path: '/' });
+    return { 
+      message: 'Mot de passe modifié. Veuillez vous reconnecter.', 
+      requiresLogin: true 
     };
   }
+
+  return { message: 'Paramètres mis à jour' };
+}
 
   // --- REFRESH ---
   @UseGuards(ThrottlerGuard)

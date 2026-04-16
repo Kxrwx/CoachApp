@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -62,6 +62,36 @@ export class AuthService {
     return { message: 'Déconnecté' };
   }
 
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        mfaEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé');
+    }
+
+    return user;
+  }
+
+async updateMe(userId: string, data: { password?: string; mfaEnabled?: boolean }) {
+  return await this.prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: data.password ? await bcrypt.hash(data.password, 10) : undefined,
+      mfaEnabled: data.mfaEnabled !== undefined ? data.mfaEnabled : undefined,
+    },
+  });
+}
+  
+
 
 
   // --- HELPERS PRIVÉS ---
@@ -110,4 +140,6 @@ export class AuthService {
 
     return { access_token, refresh_token };
   }
+
+  
 }

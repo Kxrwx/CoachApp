@@ -29,7 +29,7 @@ export default function AuthPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
-      credentials: 'include', // 🔥 CRUCIAL
+      credentials: 'include', 
     });
 
     const data = await response.json();

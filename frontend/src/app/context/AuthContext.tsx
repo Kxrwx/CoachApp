@@ -1,13 +1,15 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import { api, setAccessToken } from '@/lib/api';
 
 interface User { 
   id: string; 
   email: string; 
+  mfaEnabled?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface AuthContextType {

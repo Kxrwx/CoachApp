@@ -1,52 +1,46 @@
 "use client";
-import Link from 'next/link';
+import React from 'react';
 import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Users, BarChart3, Settings, GraduationCap } from 'lucide-react';
+import Link from 'next/link';
 
-interface SidebarProps {
-  isOpen: boolean;
-}
+const menuItems = [
+  { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
+  { name: 'Mes Athlètes', icon: Users, href: '/athletes' },
+  { name: 'Analyses Data', icon: BarChart3, href: '/analyses' },
+  { name: 'Programmes', icon: GraduationCap, href: '/programmes' },
+  { name: 'Paramètres', icon: Settings, href: '/setting' },
+];
 
-export default function Sidebar({ isOpen }: SidebarProps) {
+export default function Sidebar() {
   const pathname = usePathname();
 
-  const menuItems = [
-    { icon: "🏠", label: "Dashboard", href: "/" },
-    { icon: "🏋️", label: "Séances", href: "/workouts" },
-    { icon: "📈", label: "Statistiques", href: "/stats" },
-    { icon: "👤", label: "Profil", href: "/profile" },
-  ];
-
   return (
-    <aside className={`${isOpen ? 'w-64' : 'w-20'} bg-[#1e293b] border-r border-slate-700/50 transition-all duration-300 flex flex-col`}>
-      <div className="h-16 flex items-center px-6 border-b border-slate-700/50">
-        <div className="bg-blue-600 p-1.5 rounded-lg mr-3">⚡</div>
-        {isOpen && <span className="text-xl font-black text-white tracking-tighter">COACH<span className="text-blue-500">APP</span></span>}
-      </div>
-      
-      <nav className="flex-1 p-4 space-y-2 mt-4">
+    <aside className="fixed left-0 top-16 bottom-0 w-64 border-r border-slate-100 bg-white z-20">
+      <nav className="p-4 space-y-2">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
+          
           return (
-            <Link 
-              key={item.href}
-              href={item.href} 
-              className={`flex items-center p-3 rounded-xl transition-all group ${
-                isActive ? 'bg-blue-600/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-black transition-all duration-200 uppercase tracking-tight italic ${
+                isActive 
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 -rotate-1 scale-[1.02]' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <span className="text-xl min-w-[30px]">{item.icon}</span>
-              {isOpen && <span className="ml-3 font-semibold">{item.label}</span>}
+              <item.icon 
+                size={20} 
+                strokeWidth={isActive ? 3 : 2}
+                className={isActive ? 'text-indigo-100' : 'group-hover:text-indigo-600'} 
+              />
+              {item.name}
             </Link>
           );
         })}
       </nav>
-
-      <div className="p-4 border-t border-slate-700/50">
-        <button className="flex items-center w-full p-3 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all font-semibold">
-          <span className="text-xl min-w-[30px]">🚪</span>
-          {isOpen && <span className="ml-3">Déconnexion</span>}
-        </button>
-      </div>
     </aside>
   );
 }
