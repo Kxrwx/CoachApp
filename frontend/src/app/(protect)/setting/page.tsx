@@ -6,23 +6,20 @@ import { faStrava } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAuth } from "@/app/context/AuthContext";
 import { api } from "@/lib/api";
+import StravaButton from "@/app/components/button/buttonStrava";
 
 export default function SettingsPage() {
-  const { user, loading, syncUser, logout } = useAuth();
+  const { user, userStrava, loading, syncUser, logout } = useAuth();
 
-  // États pour le MFA
   const [mfaEnabled, setMfaEnabled] = useState(false);
   
-  // États pour le mot de passe
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // États globaux
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Vérifications de changement
   const hasMfaChanged = user?.mfaEnabled !== mfaEnabled;
   const hasPasswordInput = newPassword.length > 0;
   const hasChanged = hasMfaChanged || hasPasswordInput;
@@ -42,7 +39,6 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!hasChanged) return;
     
-    // Validation front-end
     if (hasPasswordInput && newPassword !== confirmPassword) {
       setError("Les mots de passe ne correspondent pas.");
       return;
@@ -57,12 +53,10 @@ export default function SettingsPage() {
     setError(null);
 
     try {
-      // Construction du payload selon ce qui a été modifié
       const payload: { mfaEnabled?: boolean; password?: string } = {};
       if (hasMfaChanged) payload.mfaEnabled = mfaEnabled;
       if (hasPasswordInput) payload.password = newPassword;
 
-      // Appel de ton nouvel endpoint backend
       const res = await api('/auth/update', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -72,19 +66,16 @@ export default function SettingsPage() {
 
       const data = await res.json();
 
-      // Si le backend demande une reconnexion (ex: changement de mot de passe)
       if (data.requiresLogin) {
         logout();
-        return; // On arrête l'exécution ici car l'utilisateur va être redirigé
+        return;
       }
 
       setShowSuccess(true);
       
-      // Nettoyage des champs de mot de passe après succès
       setNewPassword("");
       setConfirmPassword("");
       
-      // On resynchronise le user global
       await syncUser();
       
       setTimeout(() => setShowSuccess(false), 3000);
@@ -95,9 +86,6 @@ export default function SettingsPage() {
     }
   };
 
-  // On extrait userStrava s'il existe dans l'objet user
-  // @ts-ignore
-  const userStrava = user?.userStrava;
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
@@ -234,34 +222,12 @@ export default function SettingsPage() {
             </div>
             <h3 className="font-bold text-slate-900 text-lg">Synchronisation Apps</h3>
           </div>
-
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-2xl border border-slate-100 bg-slate-50/50">
-            <div className="flex-1">
-              <p className="font-bold text-slate-900">Strava Connect</p>
-              <p className="text-sm text-slate-500 font-medium">
-                {userStrava ? "Synchronisation active et en temps réel." : "Liez votre compte pour importer vos activités."}
-              </p>
-            </div>
-
-            {userStrava ? (
-              <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="relative">
-                  <img src={userStrava.profile} className="w-12 h-12 rounded-full border-2 border-indigo-50" alt="Strava" />
-                  <div className="absolute -bottom-1 -right-1 bg-[#FC4C02] text-white rounded-full p-1 border-2 border-white">
-                    <FontAwesomeIcon icon={faStrava} className="w-2 h-2" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900 leading-none">{userStrava.firstname} {userStrava.lastname}</p>
-                  <p className="text-[10px] font-bold text-indigo-600 uppercase mt-1 tracking-tighter">Athlète Premium</p>
-                </div>
-              </div>
-            ) : (
-                <button className="bg-[#FC4C02] text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-100">Connect Strava</button>
-            )}
-          </div>
+            <StravaButton 
+              userStrava={userStrava} 
+              onSyncComplete={() => syncUser()} 
+            />
+          
         </section>
-
         {/* Système */}
         <section className="bg-slate-900 p-8 rounded-2xl text-white">
           <div className="flex items-center gap-3 mb-6">

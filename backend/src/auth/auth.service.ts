@@ -64,15 +64,20 @@ export class AuthService {
 
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+  where: { id: userId },
+  select: {
+    id: true,
+    email: true,
+    mfaEnabled: true,
+    createdAt: true,
+    updatedAt: true,
+    integrations: {
       select: {
-        id: true,
-        email: true,
-        mfaEnabled: true,
-        createdAt: true,
-        updatedAt: true,
+        usersStrava: true, 
       },
-    });
+    },
+  },
+});
 
     if (!user) {
       throw new NotFoundException('Utilisateur non trouvé');

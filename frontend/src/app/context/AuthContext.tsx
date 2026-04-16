@@ -5,15 +5,31 @@ import { useRouter } from 'next/navigation';
 import { api, setAccessToken } from '@/lib/api';
 
 interface User { 
-  id: string; 
-  email: string; 
-  mfaEnabled?: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+    id: string; 
+    email: string; 
+    mfaEnabled?: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    integrations?: any[]; 
 }
+interface UserStrava {
+    id: string;
+    integrationId: string;
+    stravaAuth: string;
+    firstname: string;
+    lastname: string;
+    profilePicture: string;
+    city: string;
+    state: string;
+    country: string;
+    sex: string;
+  } ;
+  
+
 
 interface AuthContextType {
   user: User | null;
+  userStrava?: UserStrava | null;
   loading: boolean;
   isAuthenticated: boolean;
   logout: () => void;
@@ -24,6 +40,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userStrava, setUserStrava] = useState<UserStrava | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -33,14 +50,21 @@ const syncUser = useCallback(async () => {
 
     if (!res.ok) {
       setUser(null);
+      setUserStrava(null);
       return;
     }
 
     const data = await res.json();
 
     setUser(data.user);
+    const stravaInfo = data.user.integrations?.find(
+  (i: any) => i.usersStrava !== null
+)?.usersStrava;
+
+setUserStrava(stravaInfo || null);
   } catch {
     setUser(null);
+    setUserStrava(null);
   } finally {
     setLoading(false);
   }
@@ -54,6 +78,7 @@ const syncUser = useCallback(async () => {
 
   setAccessToken(null);
   setUser(null);
+  setUserStrava(null);
 
   window.location.href = '/auth';
 }, []);
@@ -63,6 +88,7 @@ const handleGlobalLogout = useCallback((e: any) => {
   const isAuthPage = window.location.pathname.startsWith('/auth');
 
   setUser(null);
+  setUserStrava(null);
 
   if (!isAuthPage) {
     window.location.href = `/auth?reason=${reason}`;
@@ -90,6 +116,7 @@ const handleGlobalLogout = useCallback((e: any) => {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      userStrava,
       loading, 
       isAuthenticated: !!user, 
       logout, 
