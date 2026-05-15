@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { StravaService } from './strava.service';
 import { StravaController } from './strava.controller';
+import { PrismaService } from '@/prisma/prisma.service';
+import { R2Service } from '@/r2/r2.service';
 
 @Module({
-  providers: [StravaService],
+  providers: [StravaService, PrismaService, R2Service, Logger],
   controllers: [StravaController]
 })
 export class StravaModule {}

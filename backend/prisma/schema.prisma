@@ -102,17 +102,21 @@ model StravaStats {
 model Activity {
   id        String   @id @default(uuid())
   userId    String
-
-  idStrava  String?
-  idUpload String? @unique
+  
+  idStrava  String?  @unique 
+  idUpload  String?  @unique
 
   startDate DateTime
   createdAt DateTime @default(now())
 
-  uploadDetail UploadActivity? @relation(fields: [idUpload], references: [id])
-  user         User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uploadDetail  UploadActivity?  @relation(fields: [idUpload], references: [id])
+  stravaDetail  StravaActivity?  @relation(fields: [idStrava], references: [id])
+  
+  storage       StorageMetadata[] 
 
   @@unique([userId, idStrava])
+
 }
 model StravaActivity {
   id                 String            @id @default(uuid())
@@ -139,7 +143,8 @@ model StravaActivity {
   totalElevationGain Float
   type               String
   startDate          DateTime
-  storage            StorageMetadata[]
+
+  activity           Activity?
   userStrava         UsersStrava       @relation(fields: [userStravaId], references: [id])
 }
 
@@ -147,19 +152,23 @@ model UploadActivity {
   id       String            @id @default(uuid())
   dataId   String
   activity Activity?
-  storage  StorageMetadata[]
+}
+
+enum StorageSource {
+  STRAVA
+  UPLOAD
 }
 
 model StorageMetadata {
-  id               String          @id @default(uuid())
-  r2Key            String          @unique
-  mimeType         String
-  fileSize         Int
-  createdAt        DateTime        @default(now())
-  stravaActivityId String?
-  uploadActivityId String?
-  stravaActivity   StravaActivity? @relation(fields: [stravaActivityId], references: [id])
-  uploadActivity   UploadActivity? @relation(fields: [uploadActivityId], references: [id])
+  id         String        @id @default(uuid())
+  r2Key      String        @unique
+  mimeType   String
+  fileSize   Int
+  source     StorageSource @default(STRAVA) 
+  createdAt  DateTime      @default(now())
+
+  activityId String
+  activity   Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
 }
 
 model PlannedWorkout {
