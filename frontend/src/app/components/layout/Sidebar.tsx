@@ -1,14 +1,14 @@
 "use client";
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, BarChart3, Settings, GraduationCap, Upload } from 'lucide-react';
+import { LayoutDashboard, Activity, BarChart3, Settings, Calendar, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 const menuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
-  { name: 'Mes Athlètes', icon: Users, href: '/athletes' },
+  { name: 'Mes Activitées', icon: Activity, href: '/activities' },
   { name: 'Analyses Data', icon: BarChart3, href: '/analyses' },
-  { name: 'Programmes', icon: GraduationCap, href: '/programmes' },
+  { name: 'Calendrier', icon: Calendar, href: '/calendar' },
   { name: 'Upload', icon: Upload, href: '/upload' },
   { name: 'Paramètres', icon: Settings, href: '/setting' },
 ];

@@ -1,10 +1,19 @@
-let accessToken: string | null = null;
-let refreshPromise: Promise<boolean> | null = null;
+let accessToken: string | null = typeof window !== 'undefined' 
+  ? localStorage.getItem('access_token') 
+  : null;
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+let refreshPromise: Promise<boolean> | null = null;
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('access_token', token);
+    } else {
+      localStorage.removeItem('access_token');
+    }
+  }
 }
 
 export async function api(endpoint: string, options: RequestInit = {}) {

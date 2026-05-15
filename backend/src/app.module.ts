@@ -8,6 +8,8 @@ import { SessionCleanupService } from './session-cleanup.service';
 import { StravaModule } from './strava/strava.module';
 import { R2Module } from './r2/r2.module';
 import { UploadModule } from './upload/upload.module';
+import { ActivitiesService } from './activities/activities.service';
+import { ActivitiesModule } from './activities/activities.module';
 @Module({
   imports: [
     PrismaModule, 
@@ -16,8 +18,9 @@ import { UploadModule } from './upload/upload.module';
     StravaModule,
     R2Module,
     UploadModule,
+    ActivitiesModule,
   ],
   controllers: [AppController],
-  providers: [AppService, SessionCleanupService],
+  providers: [AppService, SessionCleanupService, ActivitiesService],
 })
 export class AppModule {}

@@ -1,6 +1,6 @@
 // src/storage/r2.service.ts
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand,GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 @Injectable()
 export class R2Service {
@@ -21,6 +21,25 @@ export class R2Service {
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
       },
     });
+  }
+
+
+  async getFile(key: string): Promise<Buffer> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+      // Transformation du stream en Buffer exploitable par FitParser
+      const byteArray = await response.Body?.transformToByteArray();
+      if (!byteArray) throw new Error("Fichier vide ou corrompu.");
+      
+      return Buffer.from(byteArray);
+    } catch (error) {
+      throw new InternalServerErrorException(`Impossible de lire le fichier sur R2 : ${key}`);
+    }
   }
 
   /**
