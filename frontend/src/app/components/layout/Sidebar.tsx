@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, BarChart3, Settings, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Users, BarChart3, Settings, GraduationCap, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 const menuItems = [
@@ -9,6 +9,7 @@ const menuItems = [
   { name: 'Mes Athlètes', icon: Users, href: '/athletes' },
   { name: 'Analyses Data', icon: BarChart3, href: '/analyses' },
   { name: 'Programmes', icon: GraduationCap, href: '/programmes' },
+  { name: 'Upload', icon: Upload, href: '/upload' },
   { name: 'Paramètres', icon: Settings, href: '/setting' },
 ];
 

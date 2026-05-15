@@ -7,6 +7,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SessionCleanupService } from './session-cleanup.service';
 import { StravaModule } from './strava/strava.module';
 import { R2Module } from './r2/r2.module';
+import { UploadModule } from './upload/upload.module';
 @Module({
   imports: [
     PrismaModule, 
@@ -14,6 +15,7 @@ import { R2Module } from './r2/r2.module';
     ScheduleModule.forRoot(),
     StravaModule,
     R2Module,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService, SessionCleanupService],
