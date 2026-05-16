@@ -201,7 +201,7 @@ export class ActivitiesService {
           file_ids: data.file_ids || [],
 
           laps,
-
+          records,
           stats: {
             sport:
               session.sport ||
