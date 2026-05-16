@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { rrulestr } from 'rrule';
 import { CreatePlannedWorkoutInput, UpdatePlannedWorkoutInput } from './planning.controller';
@@ -14,7 +14,13 @@ export class PlanningService {
     userId: string,
     data: CreatePlannedWorkoutInput,
   ) {
-    // Correction ici : On autorise explicitement string ou null
+    const workoutDate = new Date(data.startDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // On remet l'heure à minuit pour ne comparer que les jours
+
+  if (workoutDate < today) {
+    throw new BadRequestException("Impossible de planifier un entraînement dans le passé.");
+  }
     let rrule: string | null = null;
 
     if (data.isRecurring && data.recurrenceRule) {

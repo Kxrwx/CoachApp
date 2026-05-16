@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useMemo, useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
   Plus,
   X,
-  Calendar,
-  Clock,
-  Repeat2,
+  Calendar as CalendarIcon,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { RRulePresets, parseRRuleToDescription } from "@/lib/rrule-helpers";
@@ -38,25 +38,30 @@ interface Activity {
   color: string;
 }
 
+const DEFAULT_FORM_DATA = {
+  title: "",
+  description: "",
+  type: "training",
+  duration: 60,
+  intensity: "moderate",
+  startTime: "18:00",
+  isRecurring: false,
+  recurrenceRule: "",
+  color: "#6366f1",
+};
+
 export default function CalendarPage() {
+  const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<PlannedEvent[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  
+  // Modal states
   const [showEventForm, setShowEventForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    type: "training",
-    duration: 60,
-    intensity: "moderate",
-    startTime: "18:00",
-    isRecurring: false,
-    recurrenceRule: "",
-    color: "#6366f1",
-  });
+  const [editingEventId, setEditingEventId] = useState<string | null>(null); // Null = Création, String = Modification
+  const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
 
-  // Charger les événements du calendrier
   useEffect(() => {
     loadCalendarEvents();
   }, []);
@@ -68,15 +73,12 @@ export default function CalendarPage() {
         const data = await response.json();
         setEvents(data.plannedWorkouts || []);
         setActivities(data.activities || []);
-      } else {
-        console.error("Erreur lors de la récupération des données:", response.statusText);
       }
     } catch (error) {
       console.error("Erreur lors du chargement du calendrier:", error);
     }
   };
 
-  // Générer les jours du calendrier
   const daysInMonth = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -86,64 +88,115 @@ export default function CalendarPage() {
     const startingDayOfWeek = firstDay.getDay();
 
     const days = [];
-    // Jours du mois précédent
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const date = new Date(year, month, -i);
-      days.push({ date, isCurrentMonth: false });
+      days.push({ date: new Date(year, month, -i), isCurrentMonth: false });
     }
-    // Jours du mois courant
     for (let day = 1; day <= daysCount; day++) {
-      days.push({
-        date: new Date(year, month, day),
-        isCurrentMonth: true,
-      });
+      days.push({ date: new Date(year, month, day), isCurrentMonth: true });
     }
-    // Jours du mois suivant
     const remainingDays = 42 - days.length;
     for (let day = 1; day <= remainingDays; day++) {
-      days.push({
-        date: new Date(year, month + 1, day),
-        isCurrentMonth: false,
-      });
+      days.push({ date: new Date(year, month + 1, day), isCurrentMonth: false });
     }
-
     return days;
   }, [currentDate]);
 
-  // Obtenir les événements pour un jour spécifique
+  // Fusionner et différencier activités et entraînements
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toISOString().split("T")[0];
-    return [
-      ...events.filter(
-        (e) => e.startDate.split("T")[0] === dateStr
-      ),
-      ...activities.filter(
-        (a) => a.startDate.split("T")[0] === dateStr
-      ),
-    ];
+    
+    const dayPlanned = events
+      .filter((e) => e.startDate.split("T")[0] === dateStr)
+      .map((e) => ({ ...e, _itemType: "planned" as const }));
+      
+    const dayActivities = activities
+      .filter((a) => a.startDate.split("T")[0] === dateStr)
+      .map((a) => ({ ...a, _itemType: "activity" as const }));
+      
+    return [...dayPlanned, ...dayActivities];
   };
 
-  // Changer le mois
-  const goToPreviousMonth = () => {
-    setCurrentDate(
-      new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() - 1
-      )
-    );
+  // ----- ACTIONS SUR LE CALENDRIER -----
+
+  const handleDayClick = (date: Date) => {
+    // Bloquer la création dans le passé
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date < today) {
+      alert("Impossible de planifier un entraînement dans le passé.");
+      return;
+    }
+
+    setSelectedDate(date);
+    setEditingEventId(null); // Mode Création
+    setFormData(DEFAULT_FORM_DATA);
+    setShowEventForm(true);
   };
 
-  const goToNextMonth = () => {
-    setCurrentDate(
-      new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() + 1
-      )
-    );
+  const handleItemClick = (e: React.MouseEvent, item: any) => {
+    e.stopPropagation();
+
+    if (item._itemType === "activity") {
+      router.push(`/activities/${item.id}`);
+    } else {
+      setEditingEventId(item.id);
+      setSelectedDate(new Date(item.startDate));
+      setFormData({
+        title: item.title,
+        description: item.description || "",
+        type: item.type || "training",
+        duration: item.duration || 60,
+        intensity: item.intensity || "moderate",
+        startTime: item.startTime || "18:00",
+        // On sauvegarde l'état récurrent dans le formulaire
+        isRecurring: item.isRecurring || false, 
+        recurrenceRule: item.recurrenceRule || "", 
+        color: item.color || "#6366f1",
+      });
+      setShowEventForm(true);
+    }
   };
 
-  // Créer un événement
-  const handleCreateEvent = async () => {
+  // ----- DRAG AND DROP -----
+
+  const handleDragStart = (e: React.DragEvent, item: any) => {
+    if (item._itemType !== "planned") {
+      e.preventDefault(); // On ne déplace pas les activités terminées
+      return;
+    }
+    e.dataTransfer.setData("eventId", item.id);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault();
+    const eventId = e.dataTransfer.getData("eventId");
+    if (!eventId) return;
+
+    // Empêcher de glisser vers le passé
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (targetDate < today) {
+      alert("Impossible de déplacer un entraînement vers le passé.");
+      return;
+    }
+
+    try {
+      const response = await api(`/planning/workouts/${eventId}`, {
+        method: "PUT",
+        body: JSON.stringify({ startDate: targetDate.toISOString() }),
+      });
+      
+      if (response.ok) {
+        loadCalendarEvents();
+      }
+    } catch (error) {
+      console.error("Erreur lors du déplacement", error);
+    }
+  };
+
+  // ----- ACTIONS MODAL (API) -----
+
+  const handleSaveEvent = async () => {
     if (!selectedDate || !formData.title) return;
 
     try {
@@ -156,58 +209,95 @@ export default function CalendarPage() {
         startDate: selectedDate.toISOString(),
         startTime: formData.startTime,
         isRecurring: formData.isRecurring,
-        recurrenceRule: formData.isRecurring
-          ? formData.recurrenceRule
-          : undefined,
+        recurrenceRule: formData.isRecurring ? formData.recurrenceRule : undefined,
         color: formData.color,
       };
 
-      // Correction ici : Ajout de la méthode POST et du Body stringifié
-      const response = await api("/planning/workouts", {
-        method: "POST",
+      const endpoint = editingEventId 
+        ? `/planning/workouts/${editingEventId}` 
+        : "/planning/workouts";
+        
+      const method = editingEventId ? "PUT" : "POST";
+
+      const response = await api(endpoint, {
+        method,
         body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        setFormData({
-          title: "",
-          description: "",
-          type: "training",
-          duration: 60,
-          intensity: "moderate",
-          startTime: "18:00",
-          isRecurring: false,
-          recurrenceRule: "",
-          color: "#6366f1",
-        });
         setShowEventForm(false);
+        setEditingEventId(null);
         setSelectedDate(null);
         loadCalendarEvents();
-      } else {
-        console.error("Erreur lors de la création de l'événement:", response.statusText);
       }
     } catch (error) {
-      console.error("Erreur lors de la création de l'événement:", error);
+      console.error("Erreur lors de la sauvegarde:", error);
     }
   };
 
-  const monthName = currentDate.toLocaleDateString("fr-FR", {
-    month: "long",
-    year: "numeric",
-  });
+  const handleDeleteEvent = async () => {
+    if (!editingEventId) return;
+    
+    console.log("ID brut reçu du calendrier :", editingEventId);
 
+    // NETTOYAGE SÉCURISÉ POUR UUID V4
+    let realIdInDatabase = editingEventId;
+
+    // 1. Si le calendrier ajoute un suffixe après un underscore (ex: UUID_2026-05-17)
+    if (editingEventId.includes('_')) {
+      realIdInDatabase = editingEventId.split('_')[0];
+    } 
+    // 2. Si le calendrier ajoute un suffixe du type UUID-recurring-X ou similaire
+    else if (editingEventId.includes('-recurring')) {
+      realIdInDatabase = editingEventId.split('-recurring')[0];
+    }
+    // 3. Si ton calendrier génère un ID virtuel plus complexe, on peut extraire l'UUID 
+    // avec une Regex qui prend exactement le format 8-4-4-4-12 caractères
+    else {
+      const uuidMatch = editingEventId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (uuidMatch) {
+        realIdInDatabase = uuidMatch[0];
+      }
+    }
+
+    console.log("ID nettoyé (UUID complet envoyé à Prisma) :", realIdInDatabase);
+
+    const confirmMessage = formData.isRecurring
+      ? "Cet entraînement est récurrent. Voulez-vous supprimer TOUTE la série ?"
+      : "Voulez-vous vraiment supprimer cet entraînement ?";
+
+    if (window.confirm(confirmMessage)) {
+      try {
+        // Utilisation de ton instance d'API globale
+        const response = await api(`/planning/workouts/${realIdInDatabase}`, {
+          method: "DELETE",
+        });
+        
+        if (response.ok) {
+          setShowEventForm(false);
+          setEditingEventId(null);
+          setSelectedDate(null);
+          loadCalendarEvents(); // On rafraîchit l'affichage
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("Erreur renvoyée par le serveur :", errorData);
+          alert(`Erreur : ${errorData.message || "Impossible de supprimer l'entraînement."}`);
+        }
+      } catch (error) {
+        console.error("Erreur réseau lors de la suppression:", error);
+      }
+    }
+  };
+
+  const monthName = currentDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   const weekDays = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-black text-slate-800">Calendrier</h1>
         <button
-          onClick={() => {
-            setSelectedDate(new Date());
-            setShowEventForm(true);
-          }}
+          onClick={() => handleDayClick(new Date())}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors"
         >
           <Plus size={18} />
@@ -215,96 +305,66 @@ export default function CalendarPage() {
         </button>
       </div>
 
-      {/* Main Calendar */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-        {/* Month Navigation */}
         <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={goToPreviousMonth}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          >
+          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
             <ChevronLeft size={20} className="text-slate-600" />
           </button>
           <h2 className="text-xl font-black uppercase tracking-wide text-slate-800">
             {monthName}
           </h2>
-          <button
-            onClick={goToNextMonth}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          >
+          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
             <ChevronRight size={20} className="text-slate-600" />
           </button>
         </div>
 
-        {/* Weekday Headers */}
         <div className="grid grid-cols-7 gap-2 mb-2">
           {weekDays.map((day) => (
-            <div
-              key={day}
-              className="p-2 text-center font-bold text-slate-500 text-sm"
-            >
+            <div key={day} className="p-2 text-center font-bold text-slate-500 text-sm">
               {day}
             </div>
           ))}
         </div>
 
-        {/* Calendar Grid */}
         <div className="grid grid-cols-7 gap-2">
           {daysInMonth.map((day, idx) => {
-            const dayEvents = getEventsForDate(day.date);
-            const isToday =
-              new Date().toDateString() ===
-              day.date.toDateString();
-            const isSelected =
-              selectedDate?.toDateString() ===
-              day.date.toDateString();
+            const dayItems = getEventsForDate(day.date);
+            const isToday = new Date().toDateString() === day.date.toDateString();
+            const isSelected = selectedDate?.toDateString() === day.date.toDateString();
 
             return (
               <div
                 key={idx}
-                onClick={() => {
-                  setSelectedDate(day.date);
-                  setShowEventForm(true);
-                }}
+                onClick={() => handleDayClick(day.date)}
+                onDragOver={(e) => e.preventDefault()} // Nécessaire pour autoriser le drop
+                onDrop={(e) => handleDrop(e, day.date)}
                 className={`min-h-32 p-2 rounded-lg border-2 transition-all cursor-pointer ${
-                  isToday
-                    ? "border-indigo-500 bg-indigo-50"
-                    : isSelected
-                    ? "border-indigo-400 bg-indigo-50"
-                    : day.isCurrentMonth
-                    ? "border-slate-200 bg-white hover:border-slate-300"
-                    : "border-slate-100 bg-slate-50"
+                  isToday ? "border-indigo-500 bg-indigo-50" :
+                  isSelected ? "border-indigo-400 bg-indigo-50" :
+                  day.isCurrentMonth ? "border-slate-200 bg-white hover:border-slate-300" :
+                  "border-slate-100 bg-slate-50"
                 }`}
               >
-                <div
-                  className={`text-xs font-bold mb-1 ${
-                    day.isCurrentMonth
-                      ? "text-slate-800"
-                      : "text-slate-400"
-                  }`}
-                >
+                <div className={`text-xs font-bold mb-1 ${day.isCurrentMonth ? "text-slate-800" : "text-slate-400"}`}>
                   {day.date.getDate()}
                 </div>
 
-                {/* Events */}
                 <div className="space-y-1">
-                  {dayEvents.slice(0, 2).map((event) => (
+                  {dayItems.map((item) => (
                     <div
-                      key={event.id}
-                      className="text-[10px] px-2 py-1 rounded text-white font-bold truncate"
-                      style={{
-                        backgroundColor: event.color,
-                      }}
-                      title={event.title}
+                      key={item.id}
+                      onClick={(e) => handleItemClick(e, item)}
+                      draggable={item._itemType === "planned"} // Seul un entraînement planifié peut être glissé
+                      onDragStart={(e) => handleDragStart(e, item)}
+                      className={`text-[10px] px-2 py-1 rounded text-white font-bold truncate ${
+                        item._itemType === "planned" ? "cursor-grab active:cursor-grabbing hover:opacity-90" : "cursor-pointer hover:opacity-90"
+                      }`}
+                      style={{ backgroundColor: item.color }}
+                      title={item.title}
                     >
-                      {event.title}
+                      {item._itemType === "activity" ? "✓ " : ""}{item.title}
                     </div>
                   ))}
-                  {dayEvents.length > 2 && (
-                    <div className="text-[9px] text-slate-500 px-2">
-                      +{dayEvents.length - 2} autre
-                    </div>
-                  )}
                 </div>
               </div>
             );
@@ -312,69 +372,55 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Event Form Modal */}
       {showEventForm && selectedDate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-black text-slate-800">
-                Ajouter un entraînement
+                {editingEventId ? "Modifier l'entraînement" : "Ajouter un entraînement"}
               </h3>
-              <button
-                onClick={() => {
-                  setShowEventForm(false);
-                  setSelectedDate(null);
-                }}
-                className="p-1 hover:bg-slate-100 rounded-lg"
-              >
-                <X size={20} className="text-slate-600" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Bouton de suppression visible uniquement en mode édition */}
+                {editingEventId && (
+                  <button onClick={handleDeleteEvent} className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors" title="Supprimer">
+                    <Trash2 size={20} />
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setShowEventForm(false);
+                    setSelectedDate(null);
+                    setEditingEventId(null);
+                  }}
+                  className="p-1 hover:bg-slate-100 rounded-lg"
+                >
+                  <X size={20} className="text-slate-600" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {/* Date Display */}
               <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-                <Calendar size={16} />
-                {selectedDate.toLocaleDateString("fr-FR", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
+                <CalendarIcon size={16} />
+                {selectedDate.toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
               </div>
 
-              {/* Title */}
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1">
-                  Titre
-                </label>
+                <label className="text-sm font-bold text-slate-700 block mb-1">Titre</label>
                 <input
                   type="text"
                   value={formData.title}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      title: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Ex: Entraînement gym"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              {/* Type */}
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1">
-                  Type
-                </label>
+                <label className="text-sm font-bold text-slate-700 block mb-1">Type</label>
                 <select
                   value={formData.type}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      type: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
                 >
                   <option value="training">Entraînement</option>
@@ -385,180 +431,46 @@ export default function CalendarPage() {
                 </select>
               </div>
 
-              {/* Time */}
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="text-sm font-bold text-slate-700 block mb-1">
-                    Heure
-                  </label>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">Heure</label>
                   <input
                     type="time"
                     value={formData.startTime}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        startTime: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="text-sm font-bold text-slate-700 block mb-1">
-                    Durée (min)
-                  </label>
+                  <label className="text-sm font-bold text-slate-700 block mb-1">Durée (min)</label>
                   <input
                     type="number"
                     value={formData.duration}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        duration: parseInt(
-                          e.target.value
-                        ),
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              {/* Intensity */}
               <div>
-                <label className="text-sm font-bold text-slate-700 block mb-1">
-                  Intensité
-                </label>
-                <select
-                  value={formData.intensity}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      intensity: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="low">Faible</option>
-                  <option value="moderate">Modérée</option>
-                  <option value="high">Élevée</option>
-                </select>
-              </div>
-
-              {/* Recurring */}
-              <div className="border-t border-slate-200 pt-4">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isRecurring}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        isRecurring: e.target.checked,
-                        recurrenceRule: e.target.checked
-                          ? "FREQ=WEEKLY;BYDAY=MO,WE,FR"
-                          : "",
-                      })
-                    }
-                    className="w-4 h-4 rounded border-slate-300"
-                  />
-                  <span className="text-sm font-bold text-slate-700">
-                    Répétition hebdomadaire
-                  </span>
-                </label>
-
-                {formData.isRecurring && (
-                  <div className="mt-3 space-y-3">
-                    <select
-                      value={formData.recurrenceRule}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          recurrenceRule:
-                            e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500 text-sm"
-                    >
-                      {RRulePresets.map(
-                        (preset) => (
-                          <option
-                            key={preset.value}
-                            value={preset.value}
-                          >
-                            {preset.label}
-                          </option>
-                        )
-                      )}
-                    </select>
-
-                    {formData.recurrenceRule && (
-                      <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
-                        {parseRRuleToDescription(
-                          formData.recurrenceRule
-                        )}
-                      </div>
-                    )}
-
-                    <label className="text-xs text-slate-600">
-                      Ou entrez une règle RRULE
-                      personnalisée:
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.recurrenceRule}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          recurrenceRule:
-                            e.target.value,
-                        })
-                      }
-                      placeholder="Ex: FREQ=WEEKLY;BYDAY=MO,WE,FR"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500 text-xs"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Color Picker */}
-              <div>
-                <label className="text-sm font-bold text-slate-700 block mb-2">
-                  Couleur
-                </label>
+                <label className="text-sm font-bold text-slate-700 block mb-2">Couleur</label>
                 <div className="flex gap-2">
-                  {[
-                    "#6366f1",
-                    "#ef4444",
-                    "#f59e0b",
-                    "#10b981",
-                    "#3b82f6",
-                    "#ec4899",
-                  ].map((color) => (
+                  {["#6366f1", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#ec4899"].map((color) => (
                     <button
                       key={color}
                       type="button"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          color,
-                        })
-                      }
+                      onClick={() => setFormData({ ...formData, color })}
                       className={`w-6 h-6 rounded-full border-2 transition-all ${
-                        formData.color === color
-                          ? "border-slate-800"
-                          : "border-slate-300"
+                        formData.color === color ? "border-slate-800" : "border-slate-300"
                       }`}
-                      style={{
-                        backgroundColor: color,
-                      }}
+                      style={{ backgroundColor: color }}
                     />
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-8">
               <button
                 type="button"
                 onClick={() => {
@@ -571,10 +483,10 @@ export default function CalendarPage() {
               </button>
               <button
                 type="button"
-                onClick={handleCreateEvent}
+                onClick={handleSaveEvent}
                 className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors"
               >
-                Ajouter
+                {editingEventId ? "Enregistrer" : "Ajouter"}
               </button>
             </div>
           </div>
