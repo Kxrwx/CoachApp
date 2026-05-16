@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
   useCallback,
+  useRef,
 } from "react";
 
 import {
@@ -14,6 +15,8 @@ import {
   Gauge,
   TrendingUp,
   Activity,
+  X,
+  RotateCcw,
 } from "lucide-react";
 
 import {
@@ -26,6 +29,7 @@ import {
   Area,
   Line,
   ReferenceArea,
+  ReferenceLine,
 } from "recharts";
 
 import {
@@ -154,68 +158,38 @@ export default function UploadView({
 
   /*
    |--------------------------------------------------------------------------
-   | SELECTION RANGE
+   | SELECTION RANGE (NOUVELLE MÉCANIQUE)
    |--------------------------------------------------------------------------
    */
 
-  const [selection, setSelection] =
-    useState<any>({
-      refAreaLeft: "",
-      refAreaRight: "",
+  const [selection, setSelection] = useState<any>({
+    startIndex: null,
+    endIndex: null,
+  });
+
+  const totalDataPoints = unifiedSeries.length;
+
+  const handleRangeChange = useCallback(
+    (start: number, end: number) => {
+      if (start >= end) return;
+      setSelection({
+        startIndex: start,
+        endIndex: end,
+      });
+    },
+    []
+  );
+
+  const handleResetSelection = useCallback(() => {
+    setSelection({
       startIndex: null,
       endIndex: null,
     });
+  }, []);
 
-  const handleMouseDown = (
-    e: any
-  ) => {
-    if (!e?.activeLabel) return;
-
-    setSelection((prev: any) => ({
-      ...prev,
-      refAreaLeft: e.activeLabel,
-    }));
-  };
-
-  const handleMouseMove = (
-    e: any
-  ) => {
-    if (
-      selection.refAreaLeft === "" ||
-      !e?.activeLabel
-    )
-      return;
-
-    setSelection((prev: any) => ({
-      ...prev,
-      refAreaRight: e.activeLabel,
-    }));
-  };
-
-  const handleMouseUp = () => {
-    if (
-      selection.refAreaLeft === "" ||
-      selection.refAreaRight === ""
-    )
-      return;
-
-    const start = Math.min(
-      selection.refAreaLeft,
-      selection.refAreaRight
-    );
-
-    const end = Math.max(
-      selection.refAreaLeft,
-      selection.refAreaRight
-    );
-
-    setSelection({
-      refAreaLeft: "",
-      refAreaRight: "",
-      startIndex: start,
-      endIndex: end,
-    });
-  };
+  const isRangeActive =
+    selection.startIndex !== null &&
+    selection.endIndex !== null;
 
   /*
    |--------------------------------------------------------------------------
@@ -239,7 +213,7 @@ export default function UploadView({
 
   /*
    |--------------------------------------------------------------------------
-   | CALCUL STATS AMÉLIORÉ
+   | CALCUL STATS AMÉLIORÉ (OPTIMISÉ)
    |--------------------------------------------------------------------------
    */
 
@@ -256,10 +230,35 @@ export default function UploadView({
 
       if (!values.length) return null;
 
+      // Tri une seule fois pour tous les calculs
+      const sorted = [...values].sort(
+        (a, b) => a - b
+      );
+
       const sum = values.reduce(
         (acc, cur) => acc + cur,
         0
       );
+
+      const avg = sum / values.length;
+
+      // Calcul écart-type
+      const variance =
+        values.reduce(
+          (acc, val) =>
+            acc + Math.pow(val - avg, 2),
+          0
+        ) / values.length;
+
+      const stdDev = Math.sqrt(variance);
+
+      // Percentiles
+      const getPercentile = (p: number) => {
+        const idx = Math.ceil(
+          (p / 100) * sorted.length - 1
+        );
+        return sorted[Math.max(0, idx)];
+      };
 
       const start =
         data[0]?.timestamp;
@@ -275,40 +274,43 @@ export default function UploadView({
           : 0;
 
       return {
-        min: Math.min(...values),
-        max: Math.max(...values),
-
-        avg: sum / values.length,
-
+        min: sorted[0],
+        max: sorted[sorted.length - 1],
+        avg,
+        stdDev: Math.round(stdDev * 100) / 100,
+        p5: getPercentile(5),
+        p25: getPercentile(25),
+        p75: getPercentile(75),
+        p95: getPercentile(95),
+        median: getPercentile(50),
         startTime: start,
         endTime: end,
-
         durationMs,
-
         samples: values.length,
+        sum,
       };
     },
     []
   );
 
-  const speedStats = computeStats(
-    rangedData,
-    "speed"
+  const speedStats = useMemo(
+    () => computeStats(rangedData, "speed"),
+    [rangedData, computeStats]
   );
 
-  const heartStats = computeStats(
-    rangedData,
-    "heartRate"
+  const heartStats = useMemo(
+    () => computeStats(rangedData, "heartRate"),
+    [rangedData, computeStats]
   );
 
-  const cadenceStats = computeStats(
-    rangedData,
-    "cadence"
+  const cadenceStats = useMemo(
+    () => computeStats(rangedData, "cadence"),
+    [rangedData, computeStats]
   );
 
-  const powerStats = computeStats(
-    rangedData,
-    "power"
+  const powerStats = useMemo(
+    () => computeStats(rangedData, "power"),
+    [rangedData, computeStats]
   );
 
   /*
@@ -449,10 +451,16 @@ export default function UploadView({
             </h4>
 
             {availableMetrics.power && (
-              <DataRow
-                label="Puissance Max"
-                value={`${fitStats.max_power} W`}
-              />
+              <>
+                <DataRow
+                  label="Puissance Max"
+                  value={`${fitStats.max_power} W`}
+                />
+                <DataRow
+                  label="Puissance Moy"
+                  value={`${fitStats.avg_power?.toFixed(0) || "—"} W`}
+                />
+              </>
             )}
 
             {availableMetrics.heartRate && (
@@ -487,7 +495,7 @@ export default function UploadView({
           <div className="space-y-3">
 
             <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
-              Géométrie
+              Géométrie & Temps
             </h4>
 
             <DataRow
@@ -505,6 +513,13 @@ export default function UploadView({
             />
 
             <DataRow
+              label="Temps Actif"
+              value={formatDuration(
+                fitStats.total_timer_time
+              )}
+            />
+
+            <DataRow
               label="Temps Total"
               value={formatDuration(
                 fitStats.total_elapsed_time
@@ -512,7 +527,7 @@ export default function UploadView({
             />
 
             <DataRow
-              label="Laps"
+              label="Segments"
               value={
                 activity.decodedFileData?.laps
                   ?.length || "1"
@@ -612,15 +627,6 @@ export default function UploadView({
             <ComposedChart
               data={unifiedSeries}
               syncId="activity-session"
-              onMouseDown={
-                handleMouseDown
-              }
-              onMouseMove={
-                handleMouseMove
-              }
-              onMouseUp={
-                handleMouseUp
-              }
               margin={{
                 top: 10,
                 right: 20,
@@ -738,24 +744,166 @@ export default function UploadView({
                 />
               )}
 
-              {selection.refAreaLeft &&
-                selection
-                  .refAreaRight && (
+              {isRangeActive && (
+                <>
                   <ReferenceArea
                     yAxisId="metric"
-                    x1={
-                      selection.refAreaLeft
-                    }
-                    x2={
-                      selection.refAreaRight
-                    }
-                    strokeOpacity={
-                      0.2
-                    }
+                    x1={selection.startIndex}
+                    x2={selection.endIndex}
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    fill="#6366f1"
+                    fillOpacity={0.15}
                   />
-                )}
+                  <ReferenceLine
+                    x={selection.startIndex}
+                    stroke="#6366f1"
+                    strokeWidth={2.5}
+                    strokeDasharray="none"
+                  />
+                  <ReferenceLine
+                    x={selection.endIndex}
+                    stroke="#6366f1"
+                    strokeWidth={2.5}
+                    strokeDasharray="none"
+                  />
+                </>
+              )}
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* RANGE SELECTOR BAR */}
+        {/* ------------------------------------------------------------------ */}
+
+        <div className="mt-6 space-y-3">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="flex items-center gap-4">
+              {/* Single Range Slider */}
+              <div className="flex-1">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-3">
+                  Sélectionner une plage
+                </label>
+                
+                {/* Custom range container */}
+                <div className="relative h-8 flex items-center">
+                  {/* Track background */}
+                  <div className="absolute w-full h-2 bg-slate-300 rounded-full" />
+                  
+                  {/* Progress track */}
+                  {isRangeActive && (
+                    <div
+                      className="absolute h-2 bg-indigo-500 rounded-full"
+                      style={{
+                        left: `${(selection.startIndex / totalDataPoints) * 100}%`,
+                        right: `${100 - (selection.endIndex / totalDataPoints) * 100}%`,
+                      }}
+                    />
+                  )}
+
+                  {/* Start slider */}
+                  <input
+                    type="range"
+                    min="0"
+                    max={Math.max(0, totalDataPoints - 1)}
+                    value={selection.startIndex ?? 0}
+                    onChange={(e) => {
+                      const start = parseInt(
+                        e.target.value
+                      );
+                      const end =
+                        selection.endIndex ??
+                        totalDataPoints - 1;
+                      if (start < end) {
+                        handleRangeChange(
+                          start,
+                          end
+                        );
+                      }
+                    }}
+                    className="absolute w-full h-2 top-3 appearance-none bg-transparent rounded-full cursor-pointer z-5 pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-indigo-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-indigo-600 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md"
+                  />
+
+                  {/* End slider */}
+                  <input
+                    type="range"
+                    min="0"
+                    max={Math.max(0, totalDataPoints - 1)}
+                    value={
+                      selection.endIndex ??
+                      totalDataPoints - 1
+                    }
+                    onChange={(e) => {
+                      const end = parseInt(
+                        e.target.value
+                      );
+                      const start =
+                        selection.startIndex ?? 0;
+                      if (start < end) {
+                        handleRangeChange(
+                          start,
+                          end
+                        );
+                      }
+                    }}
+                    className="absolute w-full h-2 top-3 appearance-none bg-transparent rounded-full cursor-pointer z-5 pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-indigo-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-indigo-600 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md"
+                  />
+                </div>
+
+                {/* Info labels */}
+                {isRangeActive && (
+                  <div className="flex justify-between mt-3 text-[11px] text-slate-500">
+                    <span>
+                      {selection.startIndex}
+                    </span>
+                    <span>
+                      {totalDataPoints -
+                        selection.endIndex +
+                        selection.startIndex}{" "}
+                      pts (
+                      {(
+                        ((totalDataPoints -
+                          selection.endIndex +
+                          selection.startIndex) /
+                          totalDataPoints) *
+                        100
+                      ).toFixed(1)}
+                      %)
+                    </span>
+                    <span>
+                      {selection.endIndex}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                {isRangeActive && (
+                  <button
+                    onClick={
+                      handleResetSelection
+                    }
+                    className="p-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 transition-colors"
+                    title="Enlever la sélection"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+                <button
+                  onClick={
+                    handleResetSelection
+                  }
+                  className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                  title="Réinitialiser"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ------------------------------------------------------------------ */}
@@ -768,14 +916,13 @@ export default function UploadView({
 
             <div>
               <div className="text-[10px] uppercase tracking-widest font-black text-slate-400">
-                Analyse plage sélectionnée
+                {isRangeActive
+                  ? "Analyse plage sélectionnée"
+                  : "Analyse complète"}
               </div>
 
               <div className="text-sm font-bold text-slate-800 mt-1">
-                {selection.startIndex !==
-                  null &&
-                selection.endIndex !==
-                  null
+                {isRangeActive
                   ? `${new Date(
                       rangedData[0]
                         ?.timestamp
@@ -785,11 +932,14 @@ export default function UploadView({
                           1
                       ]?.timestamp
                     ).toLocaleTimeString()}`
-                  : "Aucune plage sélectionnée"}
+                  : "Données complètes"}
               </div>
             </div>
 
-            {speedStats && (
+            {(speedStats ||
+              heartStats ||
+              cadenceStats ||
+              powerStats) && (
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-widest font-black text-slate-400">
                   Durée
@@ -797,7 +947,8 @@ export default function UploadView({
 
                 <div className="text-sm font-bold text-slate-800 mt-1">
                   {formatSelectionDuration(
-                    speedStats.durationMs
+                    speedStats?.durationMs ||
+                      0
                   )}
                 </div>
               </div>
@@ -831,6 +982,14 @@ export default function UploadView({
                   )}
                   unit="km/h"
                 />
+
+                <MiniStat
+                  label="Vit σ"
+                  value={speedStats.stdDev.toFixed(
+                    1
+                  )}
+                  unit="km/h"
+                />
               </>
             )}
 
@@ -855,6 +1014,14 @@ export default function UploadView({
                 <MiniStat
                   label="FC Min"
                   value={heartStats.min.toFixed(
+                    0
+                  )}
+                  unit="bpm"
+                />
+
+                <MiniStat
+                  label="FC Med"
+                  value={heartStats.median?.toFixed(
                     0
                   )}
                   unit="bpm"
@@ -887,6 +1054,14 @@ export default function UploadView({
                   )}
                   unit="rpm"
                 />
+
+                <MiniStat
+                  label="RPM P95"
+                  value={cadenceStats.p95?.toFixed(
+                    0
+                  )}
+                  unit="rpm"
+                />
               </>
             )}
 
@@ -914,6 +1089,22 @@ export default function UploadView({
                     0
                   )}
                   unit="W"
+                />
+
+                <MiniStat
+                  label="Pwr Tot"
+                  value={
+                    powerStats &&
+                    speedStats
+                      ? (
+                          (powerStats.sum *
+                            speedStats
+                              .durationMs) /
+                          3600000
+                        ).toFixed(0)
+                      : "—"
+                  }
+                  unit="kJ"
                 />
               </>
             )}
