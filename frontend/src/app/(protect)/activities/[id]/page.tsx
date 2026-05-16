@@ -13,9 +13,9 @@ import { fr } from "date-fns/locale";
 import dynamic from "next/dynamic";
 
 // Imports locaux
-import StravaView from "../../components/page/activities/StravaView";
-import UploadView from "../../components/page/activities/UploadView";
-import { MetaRow } from "../../components/UICores";
+import StravaView from "../../../components/page/activities/StravaView";
+import UploadView from "../../../components/page/activities/UploadView";
+import { MetaRow } from "../../../components/UICores";
 
 const ActivityMap = dynamic<{ polylineData: string }>(
   () => import("@/app/components/ActivityMap"), 

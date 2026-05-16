@@ -10,6 +10,7 @@ import { R2Module } from './r2/r2.module';
 import { UploadModule } from './upload/upload.module';
 import { ActivitiesService } from './activities/activities.service';
 import { ActivitiesModule } from './activities/activities.module';
+import { PlanningModule } from './planning/planning.module';
 @Module({
   imports: [
     PrismaModule, 
@@ -19,6 +20,7 @@ import { ActivitiesModule } from './activities/activities.module';
     R2Module,
     UploadModule,
     ActivitiesModule,
+    PlanningModule,
   ],
   controllers: [AppController],
   providers: [AppService, SessionCleanupService, ActivitiesService],

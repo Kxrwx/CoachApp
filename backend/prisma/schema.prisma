@@ -185,6 +185,8 @@ model PlannedWorkout {
   isRecurring Boolean   @default(false)
   rrule       String?
   endDate     DateTime?
+  color       String    @default("#6366f1") // Ajouté car utilisé dans le service
+  status      String    @default("planned") // Ajouté car utilisé dans le service (ex: 'planned' | 'completed' | 'cancelled')
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
