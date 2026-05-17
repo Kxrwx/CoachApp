@@ -23,14 +23,19 @@ export interface CreateGoalInput {
   startDate: string;
   endDate: string;
   isActive?: boolean;
-  targets: GoalTargetInput[];
+  // Mode 1: Template-based (métrique fixée par le template)
+  templateId?: string;
+  // Mode 2: Free ou surcharge de valeur cible de template
+  targets?: GoalTargetInput[];
 }
 
 export interface EvaluateTemplateInput {
-  templateType: 'pr_percentage' | 'yearly_remaining_rides';
+  templateType?: 'pr_percentage' | 'monthly_growth' | 'quarterly_average_growth' | 'duration_growth_absolute' | 'user_defined';
   metricId: string;
+  templateId?: string;
   percentage?: number;
-  totalYearlyTarget?: number;
+  growthPercent?: number;
+  growthMinutes?: number;
 }
 
 @Controller('goals')
@@ -54,6 +59,11 @@ export class GoalsController {
     @Body() body: EvaluateTemplateInput,
   ) {
     return this.goalsService.evaluateTemplate(req.user.sub, body);
+  }
+
+  @Get('templates')
+  async getTemplates(@Request() req: any) {
+    return this.goalsService.getAvailableTemplates(req.user.sub);
   }
 
   @Put(':id')
