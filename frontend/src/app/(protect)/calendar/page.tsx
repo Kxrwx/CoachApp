@@ -148,7 +148,6 @@ export default function CalendarPage() {
         duration: item.duration || 60,
         intensity: item.intensity || "moderate",
         startTime: item.startTime || "18:00",
-        // On sauvegarde l'état récurrent dans le formulaire
         isRecurring: item.isRecurring || false, 
         recurrenceRule: item.recurrenceRule || "", 
         color: item.color || "#6366f1",
@@ -161,7 +160,7 @@ export default function CalendarPage() {
 
   const handleDragStart = (e: React.DragEvent, item: any) => {
     if (item._itemType !== "planned") {
-      e.preventDefault(); // On ne déplace pas les activités terminées
+      e.preventDefault();
       return;
     }
     e.dataTransfer.setData("eventId", item.id);
@@ -238,29 +237,19 @@ export default function CalendarPage() {
   const handleDeleteEvent = async () => {
     if (!editingEventId) return;
     
-    console.log("ID brut reçu du calendrier :", editingEventId);
-
-    // NETTOYAGE SÉCURISÉ POUR UUID V4
+    // NETTOYAGE SÉCURISÉ RECONNAISSANT L'UUID V4 COMPLET
     let realIdInDatabase = editingEventId;
 
-    // 1. Si le calendrier ajoute un suffixe après un underscore (ex: UUID_2026-05-17)
     if (editingEventId.includes('_')) {
       realIdInDatabase = editingEventId.split('_')[0];
-    } 
-    // 2. Si le calendrier ajoute un suffixe du type UUID-recurring-X ou similaire
-    else if (editingEventId.includes('-recurring')) {
+    } else if (editingEventId.includes('-recurring')) {
       realIdInDatabase = editingEventId.split('-recurring')[0];
-    }
-    // 3. Si ton calendrier génère un ID virtuel plus complexe, on peut extraire l'UUID 
-    // avec une Regex qui prend exactement le format 8-4-4-4-12 caractères
-    else {
+    } else {
       const uuidMatch = editingEventId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
       if (uuidMatch) {
         realIdInDatabase = uuidMatch[0];
       }
     }
-
-    console.log("ID nettoyé (UUID complet envoyé à Prisma) :", realIdInDatabase);
 
     const confirmMessage = formData.isRecurring
       ? "Cet entraînement est récurrent. Voulez-vous supprimer TOUTE la série ?"
@@ -268,7 +257,6 @@ export default function CalendarPage() {
 
     if (window.confirm(confirmMessage)) {
       try {
-        // Utilisation de ton instance d'API globale
         const response = await api(`/planning/workouts/${realIdInDatabase}`, {
           method: "DELETE",
         });
@@ -277,7 +265,7 @@ export default function CalendarPage() {
           setShowEventForm(false);
           setEditingEventId(null);
           setSelectedDate(null);
-          loadCalendarEvents(); // On rafraîchit l'affichage
+          loadCalendarEvents(); 
         } else {
           const errorData = await response.json().catch(() => ({}));
           console.error("Erreur renvoyée par le serveur :", errorData);
@@ -336,7 +324,7 @@ export default function CalendarPage() {
               <div
                 key={idx}
                 onClick={() => handleDayClick(day.date)}
-                onDragOver={(e) => e.preventDefault()} // Nécessaire pour autoriser le drop
+                onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(e, day.date)}
                 className={`min-h-32 p-2 rounded-lg border-2 transition-all cursor-pointer ${
                   isToday ? "border-indigo-500 bg-indigo-50" :
@@ -354,7 +342,7 @@ export default function CalendarPage() {
                     <div
                       key={item.id}
                       onClick={(e) => handleItemClick(e, item)}
-                      draggable={item._itemType === "planned"} // Seul un entraînement planifié peut être glissé
+                      draggable={item._itemType === "planned"}
                       onDragStart={(e) => handleDragStart(e, item)}
                       className={`text-[10px] px-2 py-1 rounded text-white font-bold truncate ${
                         item._itemType === "planned" ? "cursor-grab active:cursor-grabbing hover:opacity-90" : "cursor-pointer hover:opacity-90"
@@ -374,13 +362,12 @@ export default function CalendarPage() {
 
       {showEventForm && selectedDate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-black text-slate-800">
                 {editingEventId ? "Modifier l'entraînement" : "Ajouter un entraînement"}
               </h3>
               <div className="flex items-center gap-2">
-                {/* Bouton de suppression visible uniquement en mode édition */}
                 {editingEventId && (
                   <button onClick={handleDeleteEvent} className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 size={20} />
@@ -446,10 +433,58 @@ export default function CalendarPage() {
                   <input
                     type="number"
                     value={formData.duration}
-                    onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+              </div>
+
+              {/* SECTION ENTRAÎNEMENT RÉCURRENT */}
+              <div className="border-t border-slate-200 pt-4 mt-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isRecurring}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        isRecurring: e.target.checked,
+                        recurrenceRule: e.target.checked
+                          ? (RRulePresets?.[0]?.value || "FREQ=WEEKLY;BYDAY=MO")
+                          : "",
+                      })
+                    }
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-bold text-slate-700">
+                    Entraînement récurrent
+                  </span>
+                </label>
+
+                {formData.isRecurring && (
+                  <div className="mt-3 space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 block mb-1">Fréquence</label>
+                      <select
+                        value={formData.recurrenceRule}
+                        onChange={(e) => setFormData({ ...formData, recurrenceRule: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 bg-white rounded-lg focus:outline-none focus:border-indigo-500 text-sm"
+                      >
+                        {RRulePresets?.map((preset) => (
+                          <option key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {formData.recurrenceRule && parseRRuleToDescription && (
+                      <div className="text-xs text-indigo-600 font-medium bg-indigo-50/50 p-2 rounded-lg border border-indigo-100">
+                        ➔ {parseRRuleToDescription(formData.recurrenceRule)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -476,6 +511,7 @@ export default function CalendarPage() {
                 onClick={() => {
                   setShowEventForm(false);
                   setSelectedDate(null);
+                  setEditingEventId(null);
                 }}
                 className="flex-1 px-4 py-2 rounded-lg bg-slate-200 text-slate-800 font-bold hover:bg-slate-300 transition-colors"
               >
