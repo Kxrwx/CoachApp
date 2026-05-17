@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalInput, EvaluateTemplateInput } from './goals.controller';
 
@@ -13,7 +13,6 @@ export class GoalsService {
       const template = templates.find((t) => t.id === data.templateId);
       if (!template) throw new NotFoundException('Template introuvable.');
 
-      // Vérifie si l'utilisateur a fourni une valeur cible manuelle, sinon on évalue le template
       const userTarget = data.targets?.find((t) => t.metricId === template.metricId);
       let targetValue: number;
 
@@ -27,7 +26,6 @@ export class GoalsService {
         targetValue = evaluation.suggestedValue;
       }
 
-      // Crée l'objectif avec la valeur finale (calculée ou saisie)
       return this.prisma.goal.create({
         data: {
           userId,
@@ -49,7 +47,7 @@ export class GoalsService {
       });
     }
 
-    // Mode 2: Free goal (objectif sans template)
+    // Mode 2: Custom goal basé sur des métriques existantes
     if (data.targets && data.targets.length > 0) {
       return this.prisma.goal.create({
         data: {
@@ -63,14 +61,25 @@ export class GoalsService {
             create: data.targets.map((t) => ({
               metricId: t.metricId,
               targetValue: t.targetValue,
-             })),
+            })),
           },
         },
         include: { targets: { include: { metric: true } } },
       });
     }
 
-    throw new BadRequestException('Fournissez soit un templateId, soit des targets libres.');
+    // Mode 3: Objectif 100% libre (Hors template, sans métrique ni records personnels)
+    return this.prisma.goal.create({
+      data: {
+        userId,
+        name: data.name,
+        type: 'free',
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        isActive: data.isActive ?? true,
+      },
+      include: { targets: { include: { metric: true } } }, // Retournera un tableau targets vide []
+    });
   }
 
   async getUserGoals(userId: string) {
@@ -82,20 +91,25 @@ export class GoalsService {
 
     if (goals.length === 0) return goals;
 
+    // Extraction sécurisée des IDs et clés (ne prend pas en compte les objectifs 'free' qui n'ont pas de targets)
     const metricIds = Array.from(new Set(goals.flatMap((goal) => goal.targets.map((target) => target.metricId))));
     const metricKeys = Array.from(new Set(goals.flatMap((goal) => goal.targets.map((target) => target.metric?.key || '')))).filter(Boolean);
 
-    const personalRecords = await this.prisma.personalRecord.findMany({
-      where: { userId, metricId: { in: metricIds } },
-      orderBy: { value: 'desc' },
-    });
+    const personalRecords = metricIds.length > 0 
+      ? await this.prisma.personalRecord.findMany({
+          where: { userId, metricId: { in: metricIds } },
+          orderBy: { value: 'desc' },
+        })
+      : [];
 
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const computedMetrics = await this.prisma.computedMetric.findMany({
-      where: { userId, metricKey: { in: metricKeys }, period: currentMonth },
-    });
+    const computedMetrics = metricKeys.length > 0
+      ? await this.prisma.computedMetric.findMany({
+          where: { userId, metricKey: { in: metricKeys }, period: currentMonth },
+        })
+      : [];
 
     const bestRecordByMetric = personalRecords.reduce<Record<string, number>>((acc, record) => {
       if (!acc[record.metricId] || acc[record.metricId] < record.value) {
@@ -126,13 +140,15 @@ export class GoalsService {
   }
 
   async updateGoal(userId: string, id: string, data: CreateGoalInput) {
-    // Vérification de l'existence et propriété
     const existingGoal = await this.prisma.goal.findFirst({
       where: { id, userId },
     });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
 
-    // Mode 1: Template-based update
+    // Nettoyage systématique des anciens targets associés avant mise à jour
+    await this.prisma.goalTarget.deleteMany({ where: { goalId: id } });
+
+    // Mode 1: Update vers un Template
     if (data.templateId) {
       const templates = await this.getAvailableTemplates(userId);
       const template = templates.find((t) => t.id === data.templateId);
@@ -151,8 +167,6 @@ export class GoalsService {
         targetValue = evaluation.suggestedValue;
       }
 
-      await this.prisma.goalTarget.deleteMany({ where: { goalId: id } });
-
       return this.prisma.goal.update({
         where: { id },
         data: {
@@ -162,22 +176,15 @@ export class GoalsService {
           endDate: new Date(data.endDate),
           isActive: data.isActive,
           targets: {
-            create: [
-              {
-                metricId: template.metricId,
-                targetValue: targetValue,
-              },
-            ],
+            create: [{ metricId: template.metricId, targetValue }],
           },
         },
         include: { targets: { include: { metric: true } } },
       });
     }
 
-    // Mode 2: Free update
+    // Mode 2: Update vers du Custom avec métriques
     if (data.targets && data.targets.length > 0) {
-      await this.prisma.goalTarget.deleteMany({ where: { goalId: id } });
-
       return this.prisma.goal.update({
         where: { id },
         data: {
@@ -197,13 +204,22 @@ export class GoalsService {
       });
     }
 
-    throw new BadRequestException('Fournissez soit un templateId, soit des targets libres.');
+    // Mode 3: Update vers un objectif Libre
+    return this.prisma.goal.update({
+      where: { id },
+      data: {
+        name: data.name,
+        type: 'free',
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        isActive: data.isActive,
+      },
+      include: { targets: { include: { metric: true } } },
+    });
   }
 
   async toggleGoalActive(userId: string, id: string, isActive: boolean) {
-    const existingGoal = await this.prisma.goal.findFirst({
-      where: { id, userId },
-    });
+    const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
 
     return this.prisma.goal.update({
@@ -213,9 +229,7 @@ export class GoalsService {
   }
 
   async deleteGoal(userId: string, id: string) {
-    const existingGoal = await this.prisma.goal.findFirst({
-      where: { id, userId },
-    });
+    const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
 
     return this.prisma.goal.delete({ where: { id } });
@@ -223,11 +237,10 @@ export class GoalsService {
 
   async evaluateTemplate(userId: string, config: EvaluateTemplateInput) {
     let mergedConfig = { ...config } as any;
-    let selectedTemplate: any = null;
     
     if (config.templateId) {
       const templates = await this.getAvailableTemplates(userId);
-      selectedTemplate = templates.find((t) => t.id === config.templateId);
+      const selectedTemplate = templates.find((t) => t.id === config.templateId);
       if (selectedTemplate) {
         mergedConfig = { ...selectedTemplate, ...mergedConfig };
       }
@@ -237,23 +250,14 @@ export class GoalsService {
     const metric = await this.prisma.metric.findUnique({ where: { id: metricId } });
     if (!metric) throw new NotFoundException('Métrique introuvable.');
 
-    const getMonthlyRecords = async (period: string) => {
-      return this.prisma.personalRecord.findMany({
-        where: { userId, metricId, period },
-        orderBy: { value: 'desc' },
-      });
-    };
-
     const getPreviousMonth = () => {
       const now = new Date();
       const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
     };
 
-    // Nouveau type de template : Remplissage automatique des structures, valeur saisie par l'utilisateur
     if (templateType === 'user_defined') {
       const previousMonth = getPreviousMonth();
-      // Recherche de la métrique calculée du mois précédent pour donner un contexte d'aide à la saisie
       const prevComputed = await this.prisma.computedMetric.findFirst({
         where: { userId, metricKey: metric.key, period: previousMonth },
       });
@@ -263,235 +267,65 @@ export class GoalsService {
       return {
         suggestedValue: lastMonthValue,
         metricId,
-        context: `Mois dernier (${previousMonth}) : ${lastMonthValue} ${metric.unit || 'sortie(s)'}. Indiquez votre nouvel objectif ci-dessous.`,
+        context: `Mois dernier (${previousMonth}) : ${lastMonthValue} ${metric.unit || ''}. Saisissez votre valeur cible ci-dessous.`,
       };
     }
 
-    if (templateType === 'pr_percentage') {
-      const percentage = mergedConfig.percentage || 100;
-
-      const personalRecord = await this.prisma.personalRecord.findFirst({
-        where: { userId, metricId },
-        orderBy: { value: 'desc' },
-      });
-
-      if (!personalRecord) {
-        throw new NotFoundException("Aucun record personnel enregistré pour cette métrique.");
-      }
-
-      const calculatedValue = Math.round((personalRecord.value * (percentage / 100)) * 10) / 10;
-
-      return {
-        suggestedValue: calculatedValue,
-        metricId,
-        context: `Basé sur votre record de ${personalRecord.value} ${metric.unit} à ${percentage}% = ${calculatedValue} ${metric.unit}.`,
-      };
-    }
-
-    if (templateType === 'monthly_growth') {
-      const growthPercent = mergedConfig.growthPercent || 10;
-      const previousMonth = getPreviousMonth();
-
-      const prevRecords = await getMonthlyRecords(previousMonth);
-      if (prevRecords.length === 0) {
-        throw new NotFoundException(`Aucune donnée du mois précédent (${previousMonth}) pour calculer la progression.`);
-      }
-
-      const avgPrevMonth = prevRecords.reduce((sum, r) => sum + r.value, 0) / prevRecords.length;
-      const calculatedValue = Math.round(avgPrevMonth * (1 + growthPercent / 100) * 10) / 10;
-
-      return {
-        suggestedValue: calculatedValue,
-        metricId,
-        context: `Moyenne du mois dernier: ${Math.round(avgPrevMonth * 10) / 10} ${metric.unit}. Avec +${growthPercent}% = ${calculatedValue} ${metric.unit}.`,
-      };
-    }
-
-    if (templateType === 'quarterly_average_growth') {
-      const growthPercent = mergedConfig.growthPercent || 5;
-      const now = new Date();
-      const months: string[] = [];
-      for (let i = 0; i < 3; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      }
-
-      const allRecords = await this.prisma.personalRecord.findMany({
-        where: { userId, metricId, period: { in: months } },
-      });
-
-      if (allRecords.length === 0) {
-        throw new NotFoundException(`Aucune donnée des 3 derniers mois pour cette métrique.`);
-      }
-
-      const avgTrimestre = allRecords.reduce((sum, r) => sum + r.value, 0) / allRecords.length;
-      const calculatedValue = Math.round(avgTrimestre * (1 + growthPercent / 100) * 10) / 10;
-
-      return {
-        suggestedValue: calculatedValue,
-        metricId,
-        context: `Moyenne trimestre: ${Math.round(avgTrimestre * 10) / 10} ${metric.unit}. Avec +${growthPercent}% = ${calculatedValue} ${metric.unit}.`,
-      };
-    }
-
-    if (templateType === 'duration_growth_absolute') {
-      const growthMinutes = mergedConfig.growthMinutes || 15;
-      const previousMonth = getPreviousMonth();
-
-      const prevRecords = await getMonthlyRecords(previousMonth);
-      if (prevRecords.length === 0) {
-        throw new NotFoundException(`Aucune donnée du mois précédent pour la durée.`);
-      }
-
-      const avgPrevMonth = prevRecords.reduce((sum, r) => sum + r.value, 0) / prevRecords.length;
-      const growthHours = growthMinutes / 60;
-      const calculatedValue = Math.round((avgPrevMonth + growthHours) * 10) / 10;
-
-      return {
-        suggestedValue: calculatedValue,
-        metricId,
-        context: `Durée moyenne mois dernier: ${Math.round(avgPrevMonth * 60)} min. Avec +${growthMinutes} min = ${Math.round(calculatedValue * 60)} min.`,
-      };
-    }
-
-    throw new BadRequestException('Type de template non pris en charge.');
+    throw new Error('Type de template non pris en charge.');
   }
 
   async getAvailableTemplates(userId: string) {
-    // Récupère les métriques de base, incluant désormais 'ride_count'
+    // Récupération de l'ensemble des clés définies dans le seed.sql
+    const targetKeys = [
+      'ride_count', 'distance_km', 'elevation_gain', 'duration_hours',
+      'power_3s', 'power_30s', 'power_1min', 'power_2min', 'power_5min',
+      'power_10min', 'power_20min', 'power_1h', 'power_2h', 'power_4h',
+      'hr_avg', 'cadence_avg', 'calories'
+    ];
+
     const metrics = await this.prisma.metric.findMany({
-      where: { key: { in: ['distance_km', 'duration_hours', 'power_avg', 'power_max', 'ftp', 'ride_count'] } },
+      where: { key: { in: targetKeys } },
     });
 
-    const templates = [
-      // Templates Nombre de Sorties
-      ...(metrics.find((m) => m.key === 'ride_count')
-        ? [
-            {
-              id: 'rides_monthly_target',
-              name: "Nombre de sorties mensuelles",
-              description: "Fixez votre nombre cible de sorties pour le mois à venir",
-              templateType: 'user_defined' as const,
-              metricId: metrics.find((m) => m.key === 'ride_count')!.id,
-              metricName: 'ride_count',
-            },
-          ]
-        : []),
+    const templates: any[] = [];
 
-      // Templates Distance
-      ...(metrics.find((m) => m.key === 'distance_km')
-        ? [
-            {
-              id: 'dist_80_percent_pr',
-              name: "80% de votre meilleur enregistrement (distance)",
-              description: "Objectif mensuel à 80% de votre record personnelle en km",
-              templateType: 'pr_percentage' as const,
-              metricId: metrics.find((m) => m.key === 'distance_km')!.id,
-              metricName: 'distance_km',
-              percentage: 80,
-            },
-            {
-              id: 'dist_monthly_plus_10',
-              name: "Distance : +10% vs mois dernier",
-              description: "Ajoute 10% à votre moyenne de km du mois précédent",
-              templateType: 'monthly_growth' as const,
-              metricId: metrics.find((m) => m.key === 'distance_km')!.id,
-              metricName: 'distance_km',
-              growthPercent: 10,
-            },
-            {
-              id: 'dist_monthly_plus_20',
-              name: "Distance : +20% vs mois dernier",
-              description: "Ajoute 20% à votre moyenne de km du mois précédent",
-              templateType: 'monthly_growth' as const,
-              metricId: metrics.find((m) => m.key === 'distance_km')!.id,
-              metricName: 'distance_km',
-              growthPercent: 20,
-            },
-            {
-              id: 'dist_quarterly_avg_plus_5',
-              name: "Distance : moyenne trimestre + 5%",
-              description: "Calcule la moyenne des 3 derniers mois puis ajoute 5%",
-              templateType: 'quarterly_average_growth' as const,
-              metricId: metrics.find((m) => m.key === 'distance_km')!.id,
-              metricName: 'distance_km',
-              growthPercent: 5,
-            },
-          ]
-        : []),
+    // Helper interne pour pousser proprement les structures de templates
+    const addTemplate = (key: string, id: string, name: string, description: string) => {
+      const foundMetric = metrics.find((m) => m.key === key);
+      if (foundMetric) {
+        templates.push({
+          id,
+          name,
+          description,
+          templateType: 'user_defined',
+          metricId: foundMetric.id,
+          metricName: key,
+        });
+      }
+    };
 
-      // Templates Puissance
-      ...(metrics.find((m) => m.key === 'power_max')
-        ? [
-            {
-              id: 'power_80_percent_pr',
-              name: "80% de votre puissance maximale",
-              description: "Objectif à 80% de votre record de puissance maximale",
-              templateType: 'pr_percentage' as const,
-              metricId: metrics.find((m) => m.key === 'power_max')!.id,
-              metricName: 'power_max',
-              percentage: 80,
-            },
-            {
-              id: 'power_90_percent_pr',
-              name: "90% de votre puissance maximale",
-              description: "Objectif à 90% de votre record de puissance maximale",
-              templateType: 'pr_percentage' as const,
-              metricId: metrics.find((m) => m.key === 'power_max')!.id,
-              metricName: 'power_max',
-              percentage: 90,
-            },
-          ]
-        : []),
+    // 1. Piliers Volume & Endurance
+    addTemplate('ride_count', 't_ride_count', 'Nombre de sorties', 'Fixez votre nombre de sessions pour la période.');
+    addTemplate('distance_km', 't_distance_km', 'Nombre de kilomètres', 'Déterminez la distance totale à parcourir.');
+    addTemplate('elevation_gain', 't_elevation_gain', 'Dénivelé total (m)', 'Cumulez du dénivelé positif.');
+    addTemplate('duration_hours', 't_duration_hours', 'Temps d\'entraînement (h)', 'Planifiez votre volume horaire sur le vélo.');
 
-      // Templates FTP
-      ...(metrics.find((m) => m.key === 'ftp')
-        ? [
-            {
-              id: 'ftp_85_percent',
-              name: "FTP : 85% (Zone SST)",
-              description: "Objectif à 85% de votre FTP - zone d'entraînement stable",
-              templateType: 'pr_percentage' as const,
-              metricId: metrics.find((m) => m.key === 'ftp')!.id,
-              metricName: 'ftp',
-              percentage: 85,
-            },
-            {
-              id: 'ftp_95_percent',
-              name: "FTP : 95% (Zone VO2)",
-              description: "Objectif à 95% de votre FTP - travail aérobie",
-              templateType: 'pr_percentage' as const,
-              metricId: metrics.find((m) => m.key === 'ftp')!.id,
-              metricName: 'ftp',
-              percentage: 95,
-            },
-          ]
-        : []),
+    // 2. Profil de Puissance Record (PPR)
+    addTemplate('power_3s', 't_power_3s', 'Puissance Maximale - Pmax (3s)', 'Ciblez votre pic de puissance pure pour les sprints courts.');
+    addTemplate('power_30s', 't_power_30s', 'Puissance Sprint (30s)', 'Maintenez une puissance explosive sur un effort de type fin de bosse.');
+    addTemplate('power_1min', 't_power_1min', 'Puissance Anaérobie (1min)', 'Travaillez votre résistance lactique maximale.');
+    addTemplate('power_2min', 't_power_2min', 'Puissance PMAS (2min)', 'Optimisez votre puissance maximale aérobie courte.');
+    addTemplate('power_5min', 't_power_5min', 'Puissance PAM / VO2max (5min)', 'Développez votre consommation maximale d\'oxygène (valeur clé en cyclisme).');
+    addTemplate('power_10min', 't_power_10min', 'Puissance Seuil Haut (10min)', 'Travaillez votre capacité à endurer un rythme de contre-la-montre court.');
+    addTemplate('power_20min', 't_power_20min', 'Puissance Seuil / FTP (20min)', 'Le test de référence pour évaluer et faire évoluer votre FTP.');
+    addTemplate('power_1h', 't_power_1h', 'Puissance Maximale continue (1h)', `Maintenez une puissance constante et solide lors d''un effort long.`);
+    addTemplate('power_2h', 't_power_2h', 'Puissance d\'Endurance Rythmée (2h)', 'Idéal pour mesurer la dérive cardiaque et la régularité sur sortie moyenne.');
+    addTemplate('power_4h', 't_power_4h', 'Puissance d\'Endurance Longue (4h)', `Suivez votre puissance moyenne sur les sorties d''endurance fondamentale majeures.`);
 
-      // Templates Durée
-      ...(metrics.find((m) => m.key === 'duration_hours')
-        ? [
-            {
-              id: 'duration_plus_15',
-              name: "Durée : +15 minutes vs mois dernier",
-              description: "Ajoute 15 minutes à votre durée moyenne mensuelle",
-              templateType: 'duration_growth_absolute' as const,
-              metricId: metrics.find((m) => m.key === 'duration_hours')!.id,
-              metricName: 'duration_hours',
-              growthMinutes: 15,
-            },
-            {
-              id: 'duration_plus_30',
-              name: "Durée : +30 minutes vs mois dernier",
-              description: "Ajoute 30 minutes à votre durée moyenne mensuelle",
-              templateType: 'duration_growth_absolute' as const,
-              metricId: metrics.find((m) => m.key === 'duration_hours')!.id,
-              metricName: 'duration_hours',
-              growthMinutes: 30,
-            },
-          ]
-        : []),
-    ];
+    // 3. Cardio, Cadence & Calories
+    addTemplate('hr_avg', 't_hr_avg', 'Fréquence Cardiaque Moyenne', 'Gérez l\'intensité cardiaque globale de vos entraînements.');
+    addTemplate('cadence_avg', 't_cadence_avg', 'Cadence de pédalage moyenne', 'Travaillez votre vélocité ou votre force (RPM cible).');
+    addTemplate('calories', 't_calories', 'Dépense Énergétique (kcal)', 'Suivez la charge énergétique totale consommée.');
 
     return templates;
   }
