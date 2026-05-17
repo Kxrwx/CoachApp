@@ -11,6 +11,7 @@ import { UploadModule } from './upload/upload.module';
 import { ActivitiesService } from './activities/activities.service';
 import { ActivitiesModule } from './activities/activities.module';
 import { PlanningModule } from './planning/planning.module';
+import { GoalsModule } from './goals/goals.module';
 @Module({
   imports: [
     PrismaModule, 
@@ -21,6 +22,8 @@ import { PlanningModule } from './planning/planning.module';
     UploadModule,
     ActivitiesModule,
     PlanningModule,
+    GoalsModule,
+
   ],
   controllers: [AppController],
   providers: [AppService, SessionCleanupService, ActivitiesService],
