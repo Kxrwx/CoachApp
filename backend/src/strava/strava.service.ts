@@ -103,11 +103,12 @@ export class StravaService {
             profilePicture: athlete.profile,
           },
         });
-        this.syncStatsStrava(athlete.id);
-        this.cleanIncompleteActivities(userId);
+        await this.syncStatsStrava(athlete.id);
+        await this.cleanIncompleteActivities(userId);
         return { success: true };
       });
     } catch (error) {
+    
       throw new BadRequestException("Échec de la liaison avec Strava");
     }
   }
@@ -190,7 +191,7 @@ async unlinkAccount(userId: string) {
     });
 
     // Nettoyage final des activités qui n'ont plus ni Strava ni Upload manuel
-    this.cleanIncompleteActivities(userId);
+    await this.cleanIncompleteActivities(userId);
 
     this.logger.log(`[Déliaison] Compte Strava délié avec succès pour l'utilisateur ${userId}`);
     return { success: true };

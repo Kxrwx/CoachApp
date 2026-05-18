@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, LogOut } from "lucide-react";
 import { faStrava } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -16,14 +16,16 @@ export default function StravaButton({ userStrava, onSyncComplete }: StravaButto
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const hasLinked = useRef(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     const code = searchParams.get("code");
-    
+    if (!code || hasLinked.current) return;
+
+    hasLinked.current = true;
     if (code) {
       const linkStravaAccount = async () => {
         setIsConnecting(true);
