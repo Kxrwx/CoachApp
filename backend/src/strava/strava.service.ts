@@ -103,8 +103,8 @@ export class StravaService {
             profilePicture: athlete.profile,
           },
         });
-        await this.syncStatsStrava(athlete.id);
-        await this.cleanIncompleteActivities(userId);
+        this.syncStatsStrava(athlete.id);
+        this.cleanIncompleteActivities(userId);
         return { success: true };
       });
     } catch (error) {
@@ -191,7 +191,7 @@ async unlinkAccount(userId: string) {
     });
 
     // Nettoyage final des activités qui n'ont plus ni Strava ni Upload manuel
-    await this.cleanIncompleteActivities(userId);
+    this.cleanIncompleteActivities(userId);
 
     this.logger.log(`[Déliaison] Compte Strava délié avec succès pour l'utilisateur ${userId}`);
     return { success: true };
@@ -617,61 +617,85 @@ private async updatePersonalRecords(
 
   if (!rides.length) return;
 
-  // 🔥 CORRECTION : Correspondance exacte avec tes clés SQL "Metric"
-  const METRICS = {
-    LONGEST_DISTANCE: 'ride_max_distance_km',
-    HIGHEST_ELEVATION: 'ride_max_elevation_gain',
-    LONGEST_DURATION: 'ride_max_duration_hours',
-    BEST_AVG_WATTS: 'ride_max_avg_watts', 
+  // 🔥 TOUS les records possibles du seed
+  const METRICS_MAP: Record<string, { extract: (act: any) => number | undefined; convert: (val: number) => number }> = {
+    'ride_max_distance_km': {
+      extract: (act) => act.distance ? act.distance / 1000 : undefined,
+      convert: (val) => this.round(val),
+    },
+    'ride_max_elevation_gain': {
+      extract: (act) => act.total_elevation_gain,
+      convert: (val) => this.round(val),
+    },
+    'ride_max_duration_hours': {
+      extract: (act) => act.moving_time ? act.moving_time / 3600 : undefined,
+      convert: (val) => this.round(val),
+    },
+    'ride_max_avg_watts': {
+      extract: (act) => act.average_watts,
+      convert: (val) => this.round(val),
+    },
+    'cadence_avg': {
+      extract: (act) => act.average_cadence,
+      convert: (val) => this.round(val),
+    },
+    'cadence_max': {
+      extract: (act) => act.max_cadence,
+      convert: (val) => this.round(val),
+    },
+    'hr_avg': {
+      extract: (act) => act.average_heartrate,
+      convert: (val) => this.round(val),
+    },
+    'hr_max': {
+      extract: (act) => act.max_heartrate,
+      convert: (val) => this.round(val),
+    },
+    'speed_avg': {
+      extract: (act) => act.average_speed ? act.average_speed * 3.6 : undefined, // m/s -> km/h
+      convert: (val) => this.round(val),
+    },
+    'speed_max': {
+      extract: (act) => act.max_speed ? act.max_speed * 3.6 : undefined, // m/s -> km/h
+      convert: (val) => this.round(val),
+    },
+    'kj_total': {
+      extract: (act) => act.kilojoules,
+      convert: (val) => this.round(val),
+    },
   };
 
-  const prCandidates: { metricKey: string; value: number; achievedAt: Date }[] = [];
+  const candidates: Array<{ metricKey: string; value: number; achievedAt: Date }> = [];
 
   // 3. Extraction et conversion des données de l'API Strava
   for (const act of rides) {
     const date = new Date(act.start_date || act.start_date_local);
 
-    // Distance : Mètres -> Kilomètres
-    if (act.distance && !isNaN(act.distance) && act.distance > 0) {
-      prCandidates.push({
-        metricKey: METRICS.LONGEST_DISTANCE,
-        value: this.round(act.distance / 1000), 
-        achievedAt: date,
-      });
-    }
+    // 🔥 Boucle sur tous les metrics disponibles
+    for (const [metricKey, { extract, convert }] of Object.entries(METRICS_MAP)) {
+      const rawValue = extract(act);
 
-    // Dénivelé : Mètres -> Mètres
-    if (act.total_elevation_gain && !isNaN(act.total_elevation_gain) && act.total_elevation_gain > 0) {
-      prCandidates.push({
-        metricKey: METRICS.HIGHEST_ELEVATION,
-        value: this.round(act.total_elevation_gain),
-        achievedAt: date,
-      });
+      // Validation : > 0 et pas NaN
+      if (rawValue && !isNaN(rawValue) && rawValue > 0) {
+        const convertedValue = convert(rawValue);
+        candidates.push({
+          metricKey,
+          value: convertedValue,
+          achievedAt: date,
+        });
+      }
     }
+  }
 
-    // 🔥 CORRECTION DURÉE : Secondes (Strava) -> Heures (BDD : ride_max_duration_hours)
-    if (act.moving_time && !isNaN(act.moving_time) && act.moving_time > 0) {
-      prCandidates.push({
-        metricKey: METRICS.LONGEST_DURATION,
-        value: this.round(act.moving_time / 3600), // Divisé par 3600 pour obtenir des heures
-        achievedAt: date,
-      });
-    }
-
-    // Puissance moyenne max
-    if (act.average_watts && !isNaN(act.average_watts) && act.average_watts > 0) {
-      prCandidates.push({
-        metricKey: METRICS.BEST_AVG_WATTS,
-        value: this.round(act.average_watts),
-        achievedAt: date,
-      });
-    }
+  if (candidates.length === 0) {
+    this.logger.warn(`[PR Sync] Aucune métrique valide à enregistrer`);
+    return;
   }
 
   // 4. Extraction du maximum absolu par métrique (All-Time)
   const bestByMetric = new Map<string, { value: number; date: Date }>();
 
-  for (const pr of prCandidates) {
+  for (const pr of candidates) {
     const existing = bestByMetric.get(pr.metricKey);
     if (!existing || pr.value > existing.value) {
       bestByMetric.set(pr.metricKey, {
@@ -684,20 +708,20 @@ private async updatePersonalRecords(
   // 5. Récupération des IDs des métriques en BDD
   const metrics = await this.prisma.metric.findMany({
     where: {
-      key: { in: Object.values(METRICS) },
+      key: { in: Array.from(bestByMetric.keys()) },
     },
     select: { id: true, key: true },
   });
 
   const metricMap = new Map(metrics.map((m) => [m.key, m.id]));
-  const upserts: Prisma.PrismaPromise<any>[] = []; // Typage explicite pour éviter le "never"
+  const upserts: Prisma.PrismaPromise<any>[] = [];
 
   // 6. Préparation de la sauvegarde forcée en base de données
   for (const [metricKey, best] of bestByMetric.entries()) {
     const metricId = metricMap.get(metricKey);
     
     if (!metricId) {
-      this.logger.warn(`[PR Sync] Impossible de MAJ le record : La métrique '${metricKey}' n'existe pas dans ta BDD.`);
+      this.logger.warn(`[PR Sync] Métrique '${metricKey}' non trouvée en BDD`);
       continue;
     }
 

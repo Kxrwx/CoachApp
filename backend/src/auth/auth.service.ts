@@ -17,18 +17,19 @@ export class AuthService {
     const user = await this.prisma.user.create({ data: { email, passwordHash: hashedPassword } });
 
     const metrics = await this.prisma.metric.findMany({
-    where: {
-      key: {
-        in: [
-          'ride_count', 'distance_km', 'elevation_gain', 'duration_hours',
-          'ride_max_distance_km', 'ride_max_elevation_gain', 'ride_max_duration_hours',
-          'power_3s', 'power_30s', 'power_1min', 'power_2min', 'power_5min',
-          'power_10min', 'power_20min', 'power_1h', 'power_2h', 'power_4h',
-          'hr_avg', 'cadence_avg', 'calories'
-        ]
+      where: {
+        key: {
+          in: [
+            'ride_max_distance_km', 'ride_max_elevation_gain', 'ride_max_duration_hours',
+            'power_avg', 'power_max', 'ftp', 'ride_max_avg_watts',
+            'power_3s', 'power_30s', 'power_1min', 'power_2min', 'power_5min',
+            'power_10min', 'power_20min', 'power_1h', 'power_2h', 'power_4h',
+            'cadence_avg', 'cadence_max', 'hr_avg', 'hr_max',
+            'speed_avg', 'speed_max', 'kj_total', 'tss', 'if'
+          ]
+        }
       }
-    }
-  });
+    });
 
   if (metrics.length > 0) {
     const now = new Date();
