@@ -16,6 +16,35 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(pass, 10);
     const user = await this.prisma.user.create({ data: { email, passwordHash: hashedPassword } });
 
+    const metrics = await this.prisma.metric.findMany({
+    where: {
+      key: {
+        in: [
+          'ride_count', 'distance_km', 'elevation_gain', 'duration_hours',
+          'ride_max_distance_km', 'ride_max_elevation_gain', 'ride_max_duration_hours',
+          'power_3s', 'power_30s', 'power_1min', 'power_2min', 'power_5min',
+          'power_10min', 'power_20min', 'power_1h', 'power_2h', 'power_4h',
+          'hr_avg', 'cadence_avg', 'calories'
+        ]
+      }
+    }
+  });
+
+  if (metrics.length > 0) {
+    const now = new Date();
+    const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    await this.prisma.personalRecord.createMany({
+      data: metrics.map((metric) => ({
+        userId: user.id,
+        metricId: metric.id,
+        value: 0,
+        period: "all_time",
+        achievedAt: now,
+      })),
+    });
+  }
+
     return this.generateTokens(user.id, user.email, ip, userAgent);
   }
 

@@ -71,7 +71,7 @@ export class AuthController {
     await this.authService.logout(req.user.sid);
 
     res.clearCookie('refresh_token', {
-      path: '/auth',
+      path: '/',
     });
 
     return { message: 'Déconnecté' };

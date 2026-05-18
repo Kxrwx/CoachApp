@@ -31,5 +31,6 @@ INSERT INTO "Metric" (id, key, name, unit, "aggregationType", scope) VALUES
   -- Effort
   (gen_random_uuid(), 'kj_total', 'Kilojoules totaux', 'kJ', 'SUM', 'ride'),
   (gen_random_uuid(), 'tss', 'Training Stress Score', 'TSS', 'SUM', 'ride'),
-  (gen_random_uuid(), 'if', 'Intensity Factor', 'IF', 'AVG', 'ride')
+  (gen_random_uuid(), 'if', 'Intensity Factor', 'IF', 'AVG', 'ride'),
+  (gen_random_uuid(), 'ride_max_avg_watts', 'Puissance moyenne max sur une sortie', 'W', 'MAX', 'ride')
 ON CONFLICT (key) DO NOTHING;

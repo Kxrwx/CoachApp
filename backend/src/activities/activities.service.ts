@@ -131,10 +131,6 @@ export class ActivitiesService {
           return reject(error);
         }
 
-        console.log(
-          JSON.stringify(data, null, 2),
-        );
-
         const session =
           data.sessions?.[0] || {};
 

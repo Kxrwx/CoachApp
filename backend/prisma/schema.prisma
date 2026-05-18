@@ -247,6 +247,8 @@ model PersonalRecord {
   isManualValidated Boolean  @default(false)
   metric            Metric   @relation(fields: [metricId], references: [id])
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metricId, period])
 }
 
 model WebhookStrava {

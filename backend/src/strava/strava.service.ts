@@ -365,6 +365,11 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       )
     );
 
+    await this.updatePersonalRecords(
+       userId,
+        allActivities,
+      );
+
     const thirtyDaysAgo = subDays(now, 30);
       const recentActivities = allActivities.filter(
         (activity) => new Date(activity.start_date).getTime() >= thirtyDaysAgo.getTime()
@@ -403,7 +408,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
         data: { idStrava: null },
       });
 
-      // On supprime physiquement les StravaActivity obsolètes en BDD
       await this.prisma.stravaActivity.deleteMany({
         where: {
           userStravaId: userStrava.id,
@@ -411,9 +415,8 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
         },
       });
 
-      // Enfin, on passe UNIQUEMENT les activités récentes à l'upsert (BDD + R2)
       await this.upsertStravaActivities(userStrava, recentActivities);
-
+      
     } catch (error) {
       console.error(`[Strava First Sync Error]`, error);
     }
@@ -600,4 +603,133 @@ private async cleanIncompleteActivities(userId: string) {
   }
 }
 
+private async updatePersonalRecords(
+  userId: string,
+  allActivities: any[],
+) {
+  // 1. Sécurité d'entrée
+  if (!allActivities?.length) return;
+
+  // 2. On garde tous les types de vélo
+  const rideTypes = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'];
+  const rides = allActivities.filter((a) => rideTypes.includes(a.type));
+
+  if (!rides.length) return;
+
+  // 🔥 CORRECTION : Correspondance exacte avec tes clés SQL "Metric"
+  const METRICS = {
+    LONGEST_DISTANCE: 'ride_max_distance_km',
+    HIGHEST_ELEVATION: 'ride_max_elevation_gain',
+    LONGEST_DURATION: 'ride_max_duration_hours',
+    BEST_AVG_WATTS: 'ride_max_avg_watts', 
+  };
+
+  const prCandidates: { metricKey: string; value: number; achievedAt: Date }[] = [];
+
+  // 3. Extraction et conversion des données de l'API Strava
+  for (const act of rides) {
+    const date = new Date(act.start_date || act.start_date_local);
+
+    // Distance : Mètres -> Kilomètres
+    if (act.distance && !isNaN(act.distance) && act.distance > 0) {
+      prCandidates.push({
+        metricKey: METRICS.LONGEST_DISTANCE,
+        value: this.round(act.distance / 1000), 
+        achievedAt: date,
+      });
+    }
+
+    // Dénivelé : Mètres -> Mètres
+    if (act.total_elevation_gain && !isNaN(act.total_elevation_gain) && act.total_elevation_gain > 0) {
+      prCandidates.push({
+        metricKey: METRICS.HIGHEST_ELEVATION,
+        value: this.round(act.total_elevation_gain),
+        achievedAt: date,
+      });
+    }
+
+    // 🔥 CORRECTION DURÉE : Secondes (Strava) -> Heures (BDD : ride_max_duration_hours)
+    if (act.moving_time && !isNaN(act.moving_time) && act.moving_time > 0) {
+      prCandidates.push({
+        metricKey: METRICS.LONGEST_DURATION,
+        value: this.round(act.moving_time / 3600), // Divisé par 3600 pour obtenir des heures
+        achievedAt: date,
+      });
+    }
+
+    // Puissance moyenne max
+    if (act.average_watts && !isNaN(act.average_watts) && act.average_watts > 0) {
+      prCandidates.push({
+        metricKey: METRICS.BEST_AVG_WATTS,
+        value: this.round(act.average_watts),
+        achievedAt: date,
+      });
+    }
+  }
+
+  // 4. Extraction du maximum absolu par métrique (All-Time)
+  const bestByMetric = new Map<string, { value: number; date: Date }>();
+
+  for (const pr of prCandidates) {
+    const existing = bestByMetric.get(pr.metricKey);
+    if (!existing || pr.value > existing.value) {
+      bestByMetric.set(pr.metricKey, {
+        value: pr.value,
+        date: pr.achievedAt,
+      });
+    }
+  }
+
+  // 5. Récupération des IDs des métriques en BDD
+  const metrics = await this.prisma.metric.findMany({
+    where: {
+      key: { in: Object.values(METRICS) },
+    },
+    select: { id: true, key: true },
+  });
+
+  const metricMap = new Map(metrics.map((m) => [m.key, m.id]));
+  const upserts: Prisma.PrismaPromise<any>[] = []; // Typage explicite pour éviter le "never"
+
+  // 6. Préparation de la sauvegarde forcée en base de données
+  for (const [metricKey, best] of bestByMetric.entries()) {
+    const metricId = metricMap.get(metricKey);
+    
+    if (!metricId) {
+      this.logger.warn(`[PR Sync] Impossible de MAJ le record : La métrique '${metricKey}' n'existe pas dans ta BDD.`);
+      continue;
+    }
+
+    upserts.push(
+      this.prisma.personalRecord.upsert({
+        where: {
+          userId_metricId_period: {
+            userId,
+            metricId,
+            period: 'all_time',
+          },
+        },
+        update: {
+          value: best.value,
+          achievedAt: best.date,
+          sourceType: 'STRAVA',
+        },
+        create: {
+          userId,
+          metricId,
+          value: best.value,
+          achievedAt: best.date,
+          period: 'all_time',
+          sourceType: 'STRAVA',
+        },
+      })
+    );
+  }
+
+  // 7. Exécution globale et atomique
+  if (upserts.length > 0) {
+    await this.prisma.$transaction(upserts);
+    this.logger.log(`[PR Sync] ${upserts.length} records mis à jour avec succès pour l'utilisateur ${userId}`);
+  }
+}
 }

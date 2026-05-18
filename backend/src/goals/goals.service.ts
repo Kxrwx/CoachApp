@@ -7,7 +7,7 @@ export class GoalsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createGoal(userId: string, data: CreateGoalInput) {
-    // Mode 1: Template-based goal
+    // Mode 1: Objectif basé sur un Template
     if (data.templateId) {
       const templates = await this.getAvailableTemplates(userId);
       const template = templates.find((t) => t.id === data.templateId);
@@ -47,7 +47,7 @@ export class GoalsService {
       });
     }
 
-    // Mode 2: Custom goal basé sur des métriques existantes
+    // Mode 2: Objectif personnalisé (Custom) basé sur des métriques existantes
     if (data.targets && data.targets.length > 0) {
       return this.prisma.goal.create({
         data: {
@@ -68,7 +68,7 @@ export class GoalsService {
       });
     }
 
-    // Mode 3: Objectif 100% libre (Hors template, sans métrique ni records personnels)
+    // Mode 3: Objectif 100% LIBRE (Hors template, décorrélé des métriques et des Personal Records)
     return this.prisma.goal.create({
       data: {
         userId,
@@ -78,7 +78,7 @@ export class GoalsService {
         endDate: new Date(data.endDate),
         isActive: data.isActive ?? true,
       },
-      include: { targets: { include: { metric: true } } }, // Retournera un tableau targets vide []
+      include: { targets: { include: { metric: true } } }, // Retourne [] pour les targets
     });
   }
 
@@ -91,7 +91,6 @@ export class GoalsService {
 
     if (goals.length === 0) return goals;
 
-    // Extraction sécurisée des IDs et clés (ne prend pas en compte les objectifs 'free' qui n'ont pas de targets)
     const metricIds = Array.from(new Set(goals.flatMap((goal) => goal.targets.map((target) => target.metricId))));
     const metricKeys = Array.from(new Set(goals.flatMap((goal) => goal.targets.map((target) => target.metric?.key || '')))).filter(Boolean);
 
@@ -140,12 +139,10 @@ export class GoalsService {
   }
 
   async updateGoal(userId: string, id: string, data: CreateGoalInput) {
-    const existingGoal = await this.prisma.goal.findFirst({
-      where: { id, userId },
-    });
+    const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
 
-    // Nettoyage systématique des anciens targets associés avant mise à jour
+    // Nettoyage des cibles liées avant de restructurer
     await this.prisma.goalTarget.deleteMany({ where: { goalId: id } });
 
     // Mode 1: Update vers un Template
@@ -175,15 +172,13 @@ export class GoalsService {
           startDate: new Date(data.startDate),
           endDate: new Date(data.endDate),
           isActive: data.isActive,
-          targets: {
-            create: [{ metricId: template.metricId, targetValue }],
-          },
+          targets: { create: [{ metricId: template.metricId, targetValue }] },
         },
         include: { targets: { include: { metric: true } } },
       });
     }
 
-    // Mode 2: Update vers du Custom avec métriques
+    // Mode 2: Update vers du Custom (avec métriques)
     if (data.targets && data.targets.length > 0) {
       return this.prisma.goal.update({
         where: { id },
@@ -222,10 +217,7 @@ export class GoalsService {
     const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
 
-    return this.prisma.goal.update({
-      where: { id },
-      data: { isActive },
-    });
+    return this.prisma.goal.update({ where: { id }, data: { isActive } });
   }
 
   async deleteGoal(userId: string, id: string) {
@@ -275,9 +267,9 @@ export class GoalsService {
   }
 
   async getAvailableTemplates(userId: string) {
-    // Récupération de l'ensemble des clés définies dans le seed.sql
     const targetKeys = [
       'ride_count', 'distance_km', 'elevation_gain', 'duration_hours',
+      'ride_max_distance_km', 'ride_max_elevation_gain', 'ride_max_duration_hours',
       'power_3s', 'power_30s', 'power_1min', 'power_2min', 'power_5min',
       'power_10min', 'power_20min', 'power_1h', 'power_2h', 'power_4h',
       'hr_avg', 'cadence_avg', 'calories'
@@ -289,7 +281,6 @@ export class GoalsService {
 
     const templates: any[] = [];
 
-    // Helper interne pour pousser proprement les structures de templates
     const addTemplate = (key: string, id: string, name: string, description: string) => {
       const foundMetric = metrics.find((m) => m.key === key);
       if (foundMetric) {
@@ -304,28 +295,33 @@ export class GoalsService {
       }
     };
 
-    // 1. Piliers Volume & Endurance
-    addTemplate('ride_count', 't_ride_count', 'Nombre de sorties', 'Fixez votre nombre de sessions pour la période.');
-    addTemplate('distance_km', 't_distance_km', 'Nombre de kilomètres', 'Déterminez la distance totale à parcourir.');
-    addTemplate('elevation_gain', 't_elevation_gain', 'Dénivelé total (m)', 'Cumulez du dénivelé positif.');
-    addTemplate('duration_hours', 't_duration_hours', 'Temps d\'entraînement (h)', 'Planifiez votre volume horaire sur le vélo.');
+    // 1. Piliers Volume & Endurance Globale (Cumulés sur le mois)
+    addTemplate('ride_count', 't_ride_count', 'Volume : Nombre de sorties', 'Cumulez un nombre cible de sessions sur la période.');
+    addTemplate('distance_km', 't_distance_km', 'Volume : Distance totale (km)', 'Fixez un cap de kilomètres global à franchir.');
+    addTemplate('elevation_gain', 't_elevation_gain', 'Volume : Dénivelé total (m)', 'Cumulez du dénivelé positif à travers vos sorties.');
+    addTemplate('duration_hours', 't_duration_hours', 'Volume : Temps d\'entraînement (h)', 'Planifiez votre volume horaire total sur le vélo.');
 
-    // 2. Profil de Puissance Record (PPR)
+    // 2. Records sur une Seule Sortie (Max)
+    addTemplate('ride_max_distance_km', 't_ride_max_distance_km', 'Record : Sortie la plus longue (km)', 'Ciblez la distance maximale à réaliser en une seule et unique sortie.');
+    addTemplate('ride_max_elevation_gain', 't_ride_max_elevation_gain', 'Record : Plus gros dénivelé sur une sortie (m)', 'Relevez le défi du plus grand dénivelé positif gravi en une seule fois.');
+    addTemplate('ride_max_duration_hours', 't_ride_max_duration_hours', 'Record : Plus longue durée sur une sortie (h)', 'Fixez le nombre d\'heures maximales à tenir sur une seule session de selle.');
+
+    // 3. Profil de Puissance Record (PPR)
     addTemplate('power_3s', 't_power_3s', 'Puissance Maximale - Pmax (3s)', 'Ciblez votre pic de puissance pure pour les sprints courts.');
     addTemplate('power_30s', 't_power_30s', 'Puissance Sprint (30s)', 'Maintenez une puissance explosive sur un effort de type fin de bosse.');
     addTemplate('power_1min', 't_power_1min', 'Puissance Anaérobie (1min)', 'Travaillez votre résistance lactique maximale.');
     addTemplate('power_2min', 't_power_2min', 'Puissance PMAS (2min)', 'Optimisez votre puissance maximale aérobie courte.');
-    addTemplate('power_5min', 't_power_5min', 'Puissance PAM / VO2max (5min)', 'Développez votre consommation maximale d\'oxygène (valeur clé en cyclisme).');
-    addTemplate('power_10min', 't_power_10min', 'Puissance Seuil Haut (10min)', 'Travaillez votre capacité à endurer un rythme de contre-la-montre court.');
+    addTemplate('power_5min', 't_power_5min', 'Puissance PAM / VO2max (5min)', 'Développez votre consommation maximale d\'oxygène.');
+    addTemplate('power_10min', 't_power_10min', 'Puissance Seuil Haut (10min)', 'Améliorez votre puissance sur les efforts de contre-la-montre courts.');
     addTemplate('power_20min', 't_power_20min', 'Puissance Seuil / FTP (20min)', 'Le test de référence pour évaluer et faire évoluer votre FTP.');
-    addTemplate('power_1h', 't_power_1h', 'Puissance Maximale continue (1h)', `Maintenez une puissance constante et solide lors d''un effort long.`);
-    addTemplate('power_2h', 't_power_2h', 'Puissance d\'Endurance Rythmée (2h)', 'Idéal pour mesurer la dérive cardiaque et la régularité sur sortie moyenne.');
-    addTemplate('power_4h', 't_power_4h', 'Puissance d\'Endurance Longue (4h)', `Suivez votre puissance moyenne sur les sorties d''endurance fondamentale majeures.`);
+    addTemplate('power_1h', 't_power_1h', 'Puissance Maximale continue (1h)', 'Maintenez une puissance constante et solide lors d\'un effort long.');
+    addTemplate('power_2h', 't_power_2h', 'Puissance d\'Endurance Rythmée (2h)', 'Mesurez votre régularité et gestion de l\'allure sur sortie moyenne.');
+    addTemplate('power_4h', 't_power_4h', 'Puissance d\'Endurance Longue (4h)', 'Suivez votre puissance moyenne sur les sorties d\'endurance fondamentale majeures.');
 
-    // 3. Cardio, Cadence & Calories
-    addTemplate('hr_avg', 't_hr_avg', 'Fréquence Cardiaque Moyenne', 'Gérez l\'intensité cardiaque globale de vos entraînements.');
-    addTemplate('cadence_avg', 't_cadence_avg', 'Cadence de pédalage moyenne', 'Travaillez votre vélocité ou votre force (RPM cible).');
-    addTemplate('calories', 't_calories', 'Dépense Énergétique (kcal)', 'Suivez la charge énergétique totale consommée.');
+    // 4. Cardio, Cadence & Calories
+    addTemplate('hr_avg', 't_hr_avg', 'Physio : Fréquence Cardiaque Moyenne', 'Gérez l\'intensité cardiaque globale de vos entraînements.');
+    addTemplate('cadence_avg', 't_cadence_avg', 'Technique : Cadence de pédalage moyenne', 'Travaillez votre vélocité ou votre force (RPM cible).');
+    addTemplate('calories', 't_calories', 'Énergie : Dépense Énergétique (kcal)', 'Suivez la charge énergétique totale brûlée.');
 
     return templates;
   }
