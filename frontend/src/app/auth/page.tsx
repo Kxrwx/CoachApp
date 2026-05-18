@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { setAccessToken } from '@/lib/api';
+import { api, setAccessToken } from '@/lib/api'; 
 
 export default function AuthPage() {
   const router = useRouter();
@@ -15,48 +15,41 @@ export default function AuthPage() {
     pass: '',
   });
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
-
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  const endpoint = isLogin ? '/auth/signin' : '/auth/signup';
+    const endpoint = isLogin ? '/auth/signin' : '/auth/signup';
 
-  try {
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-      credentials: 'include', 
-    });
+    try {
+      const response = await api(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(formData),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Une erreur est survenue');
+      if (!response.ok) {
+        throw new Error(data.message || 'Une erreur est survenue');
+      }
+
+      // 1. On stocke le token d'accès
+      setAccessToken(data.access_token);
+
+      // 2. On déclenche l'événement pour la Navbar/Layout
+      window.dispatchEvent(new Event('auth-sync'));
+
+      // 3. On redirige et on force la mise à jour des composants
+      window.location.href = '/';
+
+    } catch (err: any) {
+      console.error("Erreur Auth:", err);
+      setError(err.message || "Impossible de se connecter.");
+    } finally {
+      setLoading(false);
     }
-
-
-setAccessToken(data.access_token);
-
-await fetch(`${BACKEND_URL}/auth/me`, {
-  credentials: 'include',
-}).then(res => res.json()).then(data => {
-  window.dispatchEvent(new Event('auth-sync'));
-});
-
-router.push('/');
-    router.refresh();
-
-  } catch (err: any) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#0f172a] px-4 font-sans text-slate-200">
       <div className="w-full max-w-md bg-[#1e293b] rounded-2xl shadow-2xl p-8 border border-slate-700/50">
@@ -121,6 +114,7 @@ router.push('/');
         <div className="mt-8 pt-6 border-t border-slate-700/50 text-center">
           <button 
             onClick={() => setIsLogin(!isLogin)}
+            type="button" 
             className="text-slate-400 hover:text-white text-sm transition-colors"
           >
             {isLogin ? "Nouveau ici ? " : "Déjà membre ? "}
