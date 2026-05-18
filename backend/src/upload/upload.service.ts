@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, Logger, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
 import { StorageSource, Prisma } from '@prisma/client';
@@ -6,12 +12,13 @@ import * as crypto from 'crypto';
 
 const FitParser = require('fit-file-parser').default;
 
-interface ExtractedMetrics {
+interface ExtractedActivityMetrics {
   startDate: Date;
-  distance?: number;
-  totalElevationGain?: number;
-  movingTime?: number;
-  averageWatts?: number;
+  metrics: Record<string, number>;
+}
+
+function round(val: number, decimals: number = 2): number {
+  return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
 }
 
 @Injectable()
@@ -23,156 +30,171 @@ export class UploadService {
     private r2Service: R2Service,
   ) {}
 
-  private async extractStartDate(buffer: Buffer, extension: string): Promise<Date> {
-    if (extension === 'gpx') {
-      const content = buffer.toString('utf-8');
-      const match = content.match(/<time>(.*?)<\/time>/);
-      if (match && match[1]) return new Date(match[1]);
-      throw new BadRequestException("Date introuvable dans le fichier GPX.");
-    }
+  // ============================================================
+  // EXTRACTION DES MÉTRIQUES
+  // ============================================================
 
-    if (extension === 'fit') {
-      return new Promise((resolve, reject) => {
-        const fitParser = new FitParser({ force: true, mode: 'cascade' });
-        fitParser.parse(buffer, (error: any, data: any) => {
-          if (error) return reject(new BadRequestException("Erreur de lecture du binaire FIT."));
-          const startTime = data?.activity?.timestamp || data?.sessions?.[0]?.start_time || data?.records?.[0]?.timestamp || data?.file_ids?.[0]?.time_created;
-          if (startTime) resolve(new Date(startTime));
-          else reject(new BadRequestException("Aucune date de début trouvée dans le fichier FIT."));
-        });
-      });
-    }
-    throw new BadRequestException("Format non pris en charge.");
+  private async extractActivityMetrics(
+    buffer: Buffer,
+    extension: string,
+  ): Promise<ExtractedActivityMetrics> {
+    if (extension === 'gpx') return this.extractGpxMetrics(buffer);
+    if (extension === 'fit') return this.extractFitMetrics(buffer);
+    throw new BadRequestException('Format non pris en charge.');
   }
 
-  private async extractActivityMetrics(buffer: Buffer, extension: string): Promise<ExtractedMetrics> {
-    if (extension === 'gpx') {
-      const content = buffer.toString('utf-8');
-      
-      // Extraction de la date
-      const timeMatch = content.match(/<time>(.*?)<\/time>/);
-      if (!timeMatch || !timeMatch[1]) {
-        throw new BadRequestException("Date introuvable dans le fichier GPX.");
-      }
-      const startDate = new Date(timeMatch[1]);
+  // ── GPX ─────────────────────────────────────────────────────
 
-      // 🔥 Extraction des points de trace pour calculer distance et dénivelé
-      const trkptMatches = content.matchAll(/<trkpt lat="([^"]+)" lon="([^"]+)">.*?<ele>([^<]+)<\/ele>.*?<\/trkpt>/gs);
-      const points: Array<{ lat: number; lon: number; ele: number }> = [];
-      
-      for (const match of trkptMatches) {
-        points.push({
-          lat: parseFloat(match[1]),
-          lon: parseFloat(match[2]),
-          ele: parseFloat(match[3]),
-        });
-      }
+  private extractGpxMetrics(buffer: Buffer): ExtractedActivityMetrics {
+    const content = buffer.toString('utf-8');
 
-      let distance = 0;
-      let totalElevationGain = 0;
+    const timeMatch = content.match(/<time>(.*?)<\/time>/);
+    if (!timeMatch?.[1]) throw new BadRequestException('Date introuvable dans le fichier GPX.');
+    const startDate = new Date(timeMatch[1]);
 
-      for (let i = 1; i < points.length; i++) {
-        const prev = points[i - 1];
-        const curr = points[i];
-        
-        // Haversine pour calculer la distance entre deux points
-        distance += this.haversineDistance(prev.lat, prev.lon, curr.lat, curr.lon);
+    const trkptMatches = content.matchAll(
+      /<trkpt lat="([^"]+)" lon="([^"]+)">.*?<ele>([^<]+)<\/ele>.*?<\/trkpt>/gs,
+    );
+    const points: Array<{ lat: number; lon: number; ele: number }> = [];
+    for (const match of trkptMatches) {
+      points.push({ lat: parseFloat(match[1]), lon: parseFloat(match[2]), ele: parseFloat(match[3]) });
+    }
 
-        // Dénivelé positif
-        const elevDiff = curr.ele - prev.ele;
-        if (elevDiff > 0) {
-          totalElevationGain += elevDiff;
+    let distance = 0;
+    let elevationGain = 0;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      distance += this.haversineDistance(prev.lat, prev.lon, curr.lat, curr.lon);
+      const diff = curr.ele - prev.ele;
+      if (diff > 0) elevationGain += diff;
+    }
+
+    const metrics: Record<string, number> = {};
+    if (distance > 0)      metrics['ride_max_distance_km']    = round(distance);
+    if (elevationGain > 0) metrics['ride_max_elevation_gain'] = round(elevationGain);
+
+    return { startDate, metrics };
+  }
+
+  // ── FIT ─────────────────────────────────────────────────────
+  // Structure réelle confirmée sur fichier Strava iOS :
+  //   data.activity.sessions[0]           → objet session principal
+  //   session.start_time                  → Date de début
+  //   session.total_distance              → mètres
+  //   session.total_elapsed_time          → secondes
+  //   session.total_ascent                → mètres dénivelé positif
+  //   session.avg_speed / max_speed       → m/s
+  //   session.avg_heart_rate              → bpm
+  //   session.max_heart_rate              → bpm
+  //   session.avg_cadence / max_cadence   → rpm
+  //   session.avg_power                   → W (absent sans capteur)
+  //   session.total_work                  → joules (→ /1000 pour kJ)
+  //   session.kilojoules                  → kJ (fallback)
+
+  private extractFitMetrics(buffer: Buffer): Promise<ExtractedActivityMetrics> {
+    return new Promise((resolve, reject) => {
+      const fitParser = new FitParser({ force: true, mode: 'cascade' });
+
+      fitParser.parse(buffer, (error: any, data: any) => {
+        if (error) {
+          return reject(new BadRequestException('Erreur de lecture du binaire FIT.'));
         }
-      }
 
-      return {
-        startDate,
-        distance: distance > 0 ? distance : undefined, // en kilomètres
-        totalElevationGain: totalElevationGain > 0 ? totalElevationGain : undefined, // en mètres
-      };
-    }
+        const activity = data?.activity;
+        const session  = activity?.sessions?.[0];
 
-    if (extension === 'fit') {
-      return new Promise((resolve, reject) => {
-        const fitParser = new FitParser({ force: true, mode: 'cascade' });
-        fitParser.parse(buffer, (error: any, data: any) => {
-          if (error) {
-            this.logger.error(`[FIT Parse] Erreur parsing FIT:`, error);
-            return reject(new BadRequestException("Erreur de lecture du binaire FIT."));
-          }
-          
-          // 🔥 LOG LA STRUCTURE COMPLÈTE POUR DEBUG
-          this.logger.log(`[FIT Parse] Structure FIT complète:`, JSON.stringify(data, null, 2));
-          this.logger.log(`[FIT Parse] Keys au niveau root:`, Object.keys(data || {}));
-          if (data?.activity) this.logger.log(`[FIT Parse] Keys activity:`, Object.keys(data.activity));
-          if (data?.sessions && data.sessions[0]) this.logger.log(`[FIT Parse] Keys sessions[0]:`, Object.keys(data.sessions[0]));
-          if (data?.records && data.records[0]) this.logger.log(`[FIT Parse] Keys records[0]:`, Object.keys(data.records[0]));
+        if (!session) {
+          return reject(new BadRequestException('Aucune session trouvée dans le fichier FIT.'));
+        }
 
-          const startTime = data?.activity?.timestamp || data?.sessions?.[0]?.start_time || data?.records?.[0]?.timestamp;
-          if (!startTime) {
-            this.logger.warn(`[FIT Parse] Aucune date trouvée`);
-            return reject(new BadRequestException("Aucune date de début trouvée dans le fichier FIT."));
-          }
+        // Date de début
+        const startRaw =
+          session.start_time ??
+          activity.timestamp ??
+          data?.file_ids?.[0]?.time_created;
 
-          const startDate = new Date(startTime);
-          const session = data?.sessions?.[0];
-          const activity = data?.activity;
+        if (!startRaw) {
+          return reject(new BadRequestException('Aucune date de début trouvée dans le fichier FIT.'));
+        }
+        const startDate = new Date(startRaw);
 
-          // 🔥 MEILLEURE EXTRACTION : essayer plusieurs chemins pour les données
-          let distance = session?.total_distance ?? activity?.total_distance;
-          let totalElevationGain = session?.total_ascent ?? activity?.total_ascent ?? session?.elevation_gain ?? activity?.elevation_gain;
-          let movingTime = session?.total_elapsed_time ?? session?.total_timer_time ?? activity?.total_elapsed_time ?? activity?.total_timer_time;
-          let averageWatts = session?.avg_power ?? activity?.avg_power ?? session?.average_power ?? activity?.average_power;
+        const metrics: Record<string, number> = {};
 
-          this.logger.log(`[FIT Parse] Session raw:`, session);
-          this.logger.log(`[FIT Parse] Activity raw:`, activity);
+        // Distance (m → km)
+        if (session.total_distance > 0) {
+          metrics['ride_max_distance_km'] = round(session.total_distance / 1000);
+        }
 
-          // Conversion des distances (FIT = mètres)
-          if (distance && distance > 0) {
-            distance = distance / 1000; // mètres -> km
-          }
+        // Dénivelé positif (m)
+        if (session.total_ascent > 0) {
+          metrics['ride_max_elevation_gain'] = round(session.total_ascent);
+        }
 
-          this.logger.log(`[FIT Parse] Métriques finales extraites:`, { distance, totalElevationGain, movingTime, averageWatts });
+        // Durée (s → h)
+        if (session.total_elapsed_time > 0) {
+          metrics['ride_max_duration_hours'] = round(session.total_elapsed_time / 3600);
+        }
 
-          const metrics: ExtractedMetrics = {
-            startDate,
-            distance: distance && distance > 0 ? distance : undefined,
-            totalElevationGain: totalElevationGain && totalElevationGain > 0 ? totalElevationGain : undefined,
-            movingTime: movingTime && movingTime > 0 ? movingTime : undefined,
-            averageWatts: averageWatts && averageWatts > 0 ? averageWatts : undefined,
-          };
+        // Puissance moyenne (W) — absent sur fichiers sans capteur de puissance
+        if (session.avg_power > 0) {
+          metrics['ride_max_avg_watts'] = round(session.avg_power);
+        }
 
-          resolve(metrics);
-        });
+        // Cadence (rpm)
+        if (session.avg_cadence > 0) metrics['cadence_avg'] = round(session.avg_cadence);
+        if (session.max_cadence > 0) metrics['cadence_max'] = round(session.max_cadence);
+
+        // Fréquence cardiaque (bpm)
+        if (session.avg_heart_rate > 0) metrics['hr_avg'] = round(session.avg_heart_rate);
+        if (session.max_heart_rate > 0) metrics['hr_max'] = round(session.max_heart_rate);
+
+        // Vitesse (m/s → km/h)
+        if (session.avg_speed > 0) metrics['speed_avg'] = round(session.avg_speed * 3.6);
+        if (session.max_speed > 0) metrics['speed_max'] = round(session.max_speed * 3.6);
+
+        // Kilojoules
+        if (session.total_work > 0) {
+          // total_work est en joules dans le protocole FIT
+          metrics['kj_total'] = round(session.total_work / 1000);
+        } else if (session.kilojoules > 0) {
+          metrics['kj_total'] = round(session.kilojoules);
+        }
+
+        this.logger.log(
+          `[FIT] Métriques extraites — début: ${startDate.toISOString()} | ${JSON.stringify(metrics)}`,
+        );
+
+        resolve({ startDate, metrics });
       });
-    }
-
-    throw new BadRequestException("Format non pris en charge.");
+    });
   }
 
   private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Rayon de la Terre en km
+    const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
+
+  // ============================================================
+  // HANDLE FILE UPLOAD — point d'entrée principal
+  // ============================================================
 
   async handleFileUpload(userId: string, file: Express.Multer.File) {
     if (!file) throw new BadRequestException('Fichier manquant');
+
     const extension = file.originalname.split('.').pop()?.toLowerCase();
     if (!extension || !['gpx', 'fit'].includes(extension)) {
       throw new BadRequestException('Format invalide (.gpx/.fit uniquement).');
     }
 
     const mimeType = extension === 'gpx' ? 'application/gpx+xml' : 'application/octet-stream';
-    const metrics = await this.extractActivityMetrics(file.buffer, extension);
+    const parsedData = await this.extractActivityMetrics(file.buffer, extension);
     const dataId = crypto.randomUUID();
     const r2Key = `users/${userId}/uploads/${dataId}.${extension}`;
 
@@ -182,55 +204,138 @@ export class UploadService {
       const result = await this.prisma.$transaction(async (tx) => {
         const uploadDetail = await tx.uploadActivity.create({ data: { dataId } });
 
+        // Recherche d'une activité existante à ±1 minute (fusion upload + strava)
         let activity = await tx.activity.findFirst({
           where: {
-            userId: userId,
+            userId,
             startDate: {
-              gte: new Date(metrics.startDate.getTime() - 60000),
-              lte: new Date(metrics.startDate.getTime() + 60000),
+              gte: new Date(parsedData.startDate.getTime() - 60_000),
+              lte: new Date(parsedData.startDate.getTime() + 60_000),
             },
-          }
+          },
         });
 
         if (activity) {
           activity = await tx.activity.update({
             where: { id: activity.id },
-            data: { idUpload: uploadDetail.id }
+            data: { idUpload: uploadDetail.id },
           });
         } else {
           activity = await tx.activity.create({
-            data: { userId, idUpload: uploadDetail.id, startDate: metrics.startDate }
+            data: { userId, idUpload: uploadDetail.id, startDate: parsedData.startDate },
           });
         }
 
         await tx.storageMetadata.create({
-          data: { r2Key, mimeType, fileSize: file.size, source: StorageSource.UPLOAD, activityId: activity.id }
+          data: {
+            r2Key,
+            mimeType,
+            fileSize: file.size,
+            source: StorageSource.UPLOAD,
+            activityId: activity.id,
+          },
         });
 
-        return { activityId: activity.id, dataId, startDate: metrics.startDate, metrics };
+        return { activityId: activity.id, dataId, startDate: parsedData.startDate };
       });
 
-      // 🔥 Mise à jour des records personnels après l'upload
-      await this.updatePersonalRecords(userId, metrics);
+      // Mise à jour des personal records (hors transaction, non bloquant pour le retour client)
+      await this.updatePersonalRecords(userId, parsedData.metrics, parsedData.startDate);
 
-      return { activityId: result.activityId, dataId: result.dataId, startDate: result.startDate };
+      return result;
     } catch (error) {
       this.logger.error(`Erreur upload pour user ${userId}`, error);
       throw new InternalServerErrorException("Erreur lors de l'enregistrement de l'activité.");
     }
   }
 
+  // ============================================================
+  // MISE À JOUR DES PERSONAL RECORDS
+  // Logique : upsert uniquement si la valeur dépasse le record all_time existant.
+  // ============================================================
+
+  private async updatePersonalRecords(
+    userId: string,
+    incomingMetrics: Record<string, number>,
+    achievedAt: Date,
+  ) {
+    const metricKeys = Object.keys(incomingMetrics);
+    if (metricKeys.length === 0) {
+      this.logger.warn(`[PR Upload] Aucune métrique extraite du fichier pour ${userId}`);
+      return;
+    }
+
+    try {
+      // 1. Résolution des IDs depuis les clés du seed
+      const dbMetrics = await this.prisma.metric.findMany({
+        where: { key: { in: metricKeys } },
+        select: { id: true, key: true },
+      });
+      const metricMap = new Map(dbMetrics.map((m) => [m.key, m.id]));
+
+      for (const key of metricKeys) {
+        if (!metricMap.has(key)) {
+          this.logger.warn(`[PR Upload] Clé métrique absente du seed : ${key}`);
+        }
+      }
+
+      // 2. Records all_time actuels
+      const currentRecords = await this.prisma.personalRecord.findMany({
+        where: {
+          userId,
+          metricId: { in: Array.from(metricMap.values()) },
+          period: 'all_time',
+        },
+      });
+
+      const upserts: Prisma.PrismaPromise<any>[] = [];
+
+      for (const [key, value] of Object.entries(incomingMetrics)) {
+        const metricId = metricMap.get(key);
+        if (!metricId) continue;
+
+        const existing = currentRecords.find((r) => r.metricId === metricId);
+
+        // Mise à jour uniquement si nouveau record absolu
+        if (!existing || value > existing.value) {
+          upserts.push(
+            this.prisma.personalRecord.upsert({
+              where: { userId_metricId_period: { userId, metricId, period: 'all_time' } },
+              update:  { value, achievedAt, sourceType: 'UPLOAD' },
+              create:  { userId, metricId, value, achievedAt, period: 'all_time', sourceType: 'UPLOAD' },
+            }),
+          );
+        }
+      }
+
+      if (upserts.length > 0) {
+        await this.prisma.$transaction(upserts);
+        this.logger.log(`[PR Upload] ${upserts.length} record(s) mis à jour pour ${userId}`);
+      } else {
+        this.logger.log(
+          `[PR Upload] Aucun nouveau record pour ${userId} (valeurs inférieures aux records existants)`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(`[PR Upload] Erreur lors de la mise à jour des records :`, error);
+    }
+  }
+
+  // ============================================================
+  // SUPPRESSION D'UN UPLOAD
+  // ============================================================
+
   async deleteUpload(userId: string, activityId: string) {
     try {
       const activity = await this.prisma.activity.findFirst({
         where: { id: activityId, userId },
-        include: { 
+        include: {
           uploadDetail: true,
-          storage: { where: { source: StorageSource.UPLOAD } } 
-        }
+          storage: { where: { source: StorageSource.UPLOAD } },
+        },
       });
 
-      if (!activity || !activity.uploadDetail) {
+      if (!activity?.uploadDetail) {
         throw new NotFoundException("Activité ou fichier d'upload introuvable.");
       }
 
@@ -240,148 +345,34 @@ export class UploadService {
       }
 
       await this.prisma.$transaction(async (tx) => {
-        await tx.storageMetadata.deleteMany({
-          where: { activityId, source: StorageSource.UPLOAD }
-        });
-
-
-        await tx.activity.update({
-          where: { id: activityId },
-          data: { idUpload: null }
-        });
-
-        await tx.uploadActivity.delete({
-          where: { id: activity.idUpload! }
-        });
+        await tx.storageMetadata.deleteMany({ where: { activityId, source: StorageSource.UPLOAD } });
+        await tx.activity.update({ where: { id: activityId }, data: { idUpload: null } });
+        await tx.uploadActivity.delete({ where: { id: activity.idUpload! } });
       });
 
       await this.cleanIncompleteActivities(userId);
-
       return { success: true };
     } catch (error) {
-      this.logger.error(`Erreur lors de la suppression de l'upload ${activityId}`, error);
+      this.logger.error(`Erreur suppression upload ${activityId}`, error);
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException("Échec de la suppression.");
+      throw new InternalServerErrorException('Échec de la suppression.');
     }
   }
+
+  // ============================================================
+  // NETTOYAGE DES ACTIVITÉS ORPHELINES
+  // ============================================================
 
   private async cleanIncompleteActivities(userId: string) {
     try {
       const deleted = await this.prisma.activity.deleteMany({
-        where: {
-          userId: userId,
-          idStrava: null,
-          idUpload: null
-        },
+        where: { userId, AND: [{ idStrava: null }, { idUpload: null }] },
       });
-      if (deleted.count > 0) this.logger.log(`[Clean] ${deleted.count} activités vides supprimées.`);
-    } catch (error) {
-      this.logger.error(`[Clean] Erreur lors du nettoyage :`, error);
-    }
-  }
-
-  private async updatePersonalRecords(userId: string, metrics: ExtractedMetrics) {
-    try {
-      if (!metrics || !metrics.distance) {
-        this.logger.warn(`[PR Upload] Impossible de MAJ les records : pas assez de données (distance manquante)`);
-        return;
-      }
-
-      // 🔥 TOUS les records possibles du seed
-      const METRICS_MAP: Record<string, { extract: (m: ExtractedMetrics) => number | undefined; convert: (val: number) => number }> = {
-        'ride_max_distance_km': {
-          extract: (m) => m.distance,
-          convert: (val) => this.round(val),
-        },
-        'ride_max_elevation_gain': {
-          extract: (m) => m.totalElevationGain,
-          convert: (val) => this.round(val),
-        },
-        'ride_max_duration_hours': {
-          extract: (m) => m.movingTime ? m.movingTime / 3600 : undefined,
-          convert: (val) => this.round(val),
-        },
-        'ride_max_avg_watts': {
-          extract: (m) => m.averageWatts,
-          convert: (val) => this.round(val),
-        },
-      };
-
-      const candidates: Array<{ metricKey: string; value: number; achievedAt: Date }> = [];
-
-      // Extraction de tous les metrics disponibles
-      for (const [metricKey, { extract, convert }] of Object.entries(METRICS_MAP)) {
-        const rawValue = extract(metrics);
-
-        if (rawValue && !isNaN(rawValue) && rawValue > 0) {
-          const convertedValue = convert(rawValue);
-          candidates.push({
-            metricKey,
-            value: convertedValue,
-            achievedAt: metrics.startDate,
-          });
-        }
-      }
-
-      if (candidates.length === 0) {
-        this.logger.warn(`[PR Upload] Aucune métrique valide à enregistrer`);
-        return;
-      }
-
-      // Récupération des IDs des métriques
-      const dbMetrics = await this.prisma.metric.findMany({
-        where: {
-          key: { in: candidates.map((c) => c.metricKey) },
-        },
-        select: { id: true, key: true },
-      });
-
-      const metricMap = new Map(dbMetrics.map((m) => [m.key, m.id]));
-      const upserts: Prisma.PrismaPromise<any>[] = [];
-
-      for (const candidate of candidates) {
-        const metricId = metricMap.get(candidate.metricKey);
-        if (!metricId) {
-          this.logger.warn(`[PR Upload] Métrique '${candidate.metricKey}' non trouvée en BDD`);
-          continue;
-        }
-
-        upserts.push(
-          this.prisma.personalRecord.upsert({
-            where: {
-              userId_metricId_period: {
-                userId,
-                metricId,
-                period: 'all_time',
-              },
-            },
-            update: {
-              value: candidate.value,
-              achievedAt: candidate.achievedAt,
-              sourceType: 'UPLOAD',
-            },
-            create: {
-              userId,
-              metricId,
-              value: candidate.value,
-              achievedAt: candidate.achievedAt,
-              period: 'all_time',
-              sourceType: 'UPLOAD',
-            },
-          })
-        );
-      }
-
-      if (upserts.length > 0) {
-        await this.prisma.$transaction(upserts);
-        this.logger.log(`[PR Upload] ${upserts.length} records mis à jour pour l'utilisateur ${userId}`);
+      if (deleted.count > 0) {
+        this.logger.log(`[Clean] ${deleted.count} activité(s) orpheline(s) supprimée(s).`);
       }
     } catch (error) {
-      this.logger.error(`[PR Upload] Erreur lors de la mise à jour des records :`, error);
+      this.logger.error(`[Clean] Erreur nettoyage :`, error);
     }
-  }
-
-  private round(val: number, decimals: number = 2): number {
-    return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
 }
