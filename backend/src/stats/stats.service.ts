@@ -246,4 +246,59 @@ export class StatsService {
 
     this.logger.log(`[Stats] Activité manuelle retirée des stats globales de ${userId}.`);
   }
+
+  async getUserDashboardStats(userId: string) {
+    const allStats = await this.prisma.stats.findMany({
+      where: { userId },
+      orderBy: { periodStart: 'desc' }, // Trie du plus récent au plus ancien
+    });
+
+    // On sépare intelligemment les données pour faciliter le travail du front
+    const allTime = allStats.find(s => s.periodType === 'ride_all') || { 
+      distance: 0, 
+      elevation: 0, 
+      count: 0 
+    };
+    
+    const yearly = allStats.filter(s => s.periodType.startsWith('year_'));
+    const monthly = allStats.filter(s => s.periodType.startsWith('month_'));
+
+    return {
+      allTime,
+      yearly,
+      monthly,
+    };
+  }
+
+  async getAllTimeStats(userId: string) {
+    const stats = await this.prisma.stats.findUnique({
+      where: {
+        userId_periodType: { userId, periodType: 'ride_all' },
+      },
+    });
+
+    return stats || { distance: 0, elevation: 0, count: 0 };
+  }
+
+  async getYearlyStats(userId: string, year: number) {
+    const periodType = `year_${year}`;
+    const stats = await this.prisma.stats.findUnique({
+      where: {
+        userId_periodType: { userId, periodType },
+      },
+    });
+
+    return stats || { distance: 0, elevation: 0, count: 0, periodType };
+  }
+
+  async getMonthlyStats(userId: string, year: number, month: number) {
+    const periodType = `month_${year}_${month}`;
+    const stats = await this.prisma.stats.findUnique({
+      where: {
+        userId_periodType: { userId, periodType },
+      },
+    });
+
+    return stats || { distance: 0, elevation: 0, count: 0, periodType };
+  }
 }
