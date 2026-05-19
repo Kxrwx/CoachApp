@@ -12,6 +12,8 @@ import { ActivitiesService } from './activities/activities.service';
 import { ActivitiesModule } from './activities/activities.module';
 import { PlanningModule } from './planning/planning.module';
 import { GoalsModule } from './goals/goals.module';
+import { StatsController } from './stats/stats.controller';
+import { StatsModule } from './stats/stats.module';
 @Module({
   imports: [
     PrismaModule, 
@@ -23,9 +25,9 @@ import { GoalsModule } from './goals/goals.module';
     ActivitiesModule,
     PlanningModule,
     GoalsModule,
-
+    StatsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, StatsController],
   providers: [AppService, SessionCleanupService, ActivitiesService],
 })
 export class AppModule {}

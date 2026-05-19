@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
+import { StatsService } from '../stats/stats.service';
 import { StorageSource, Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -28,6 +29,7 @@ export class UploadService {
   constructor(
     private prisma: PrismaService,
     private r2Service: R2Service,
+    private statsService: StatsService,
   ) {}
 
   // ============================================================
@@ -78,19 +80,7 @@ export class UploadService {
   }
 
   // ── FIT ─────────────────────────────────────────────────────
-  // Structure réelle confirmée sur fichier Strava iOS :
-  //   data.activity.sessions[0]           → objet session principal
-  //   session.start_time                  → Date de début
-  //   session.total_distance              → mètres
-  //   session.total_elapsed_time          → secondes
-  //   session.total_ascent                → mètres dénivelé positif
-  //   session.avg_speed / max_speed       → m/s
-  //   session.avg_heart_rate              → bpm
-  //   session.max_heart_rate              → bpm
-  //   session.avg_cadence / max_cadence   → rpm
-  //   session.avg_power                   → W (absent sans capteur)
-  //   session.total_work                  → joules (→ /1000 pour kJ)
-  //   session.kilojoules                  → kJ (fallback)
+
 
   private extractFitMetrics(buffer: Buffer): Promise<ExtractedActivityMetrics> {
     return new Promise((resolve, reject) => {
@@ -198,13 +188,15 @@ export class UploadService {
     const dataId = crypto.randomUUID();
     const r2Key = `users/${userId}/uploads/${dataId}.${extension}`;
 
+    const fileDistance = parsedData.metrics['ride_max_distance_km'] || 0;
+    const fileElevation = parsedData.metrics['ride_max_elevation_gain'] || 0;
+
     try {
       await this.r2Service.uploadOrUpdateFile(r2Key, file.buffer, mimeType);
 
       const result = await this.prisma.$transaction(async (tx) => {
         const uploadDetail = await tx.uploadActivity.create({ data: { dataId } });
 
-        // Recherche d'une activité existante à ±1 minute (fusion upload + strava)
         let activity = await tx.activity.findFirst({
           where: {
             userId,
@@ -241,6 +233,7 @@ export class UploadService {
 
       // Mise à jour des personal records (hors transaction, non bloquant pour le retour client)
       await this.updatePersonalRecords(userId, parsedData.metrics, parsedData.startDate);
+      await this.statsService.addUploadStats(userId, fileDistance, fileElevation, parsedData.startDate);
 
       return result;
     } catch (error) {

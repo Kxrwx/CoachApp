@@ -5,23 +5,13 @@ import axios from 'axios';
 import { startOfMonth, startOfYear, subMonths, subYears, subDays } from 'date-fns';
 import { R2Service } from '../r2/r2.service';
 import { Prisma, StorageSource } from '@prisma/client';
+import { StatsService } from '../stats/stats.service'; 
 
 type UsersStravaWithIntegration = Prisma.UsersStravaGetPayload<{
   include: { integration: true };
 }>;
 
-type StravaRawActivity = {
-  id: string;
-  name: string;
-  distance: number;
-  moving_time: number;
-  elapsed_time: number;
-  total_elevation_gain: number;
-  type: string;
-  start_date: string;
-  device_watts?: boolean;
-  average_watts?: number;
-};
+
 
 interface PendingStat {
   type: string;
@@ -36,7 +26,7 @@ interface PendingStat {
 
 @Injectable()
 export class StravaService {
-  constructor(private prisma: PrismaService, private r2Service: R2Service, private logger: Logger) {}
+  constructor(private prisma: PrismaService, private r2Service: R2Service, private logger: Logger, private statsService: StatsService) {}
 
   getAuthUrl() {
     const rootUrl = 'https://www.strava.com/oauth/authorize';
@@ -126,7 +116,7 @@ async unlinkAccount(userId: string) {
     }
 
     const usersStravaId = integration.usersStrava.id;
-
+    await this.statsService.subtractStravaStats(userId, usersStravaId);
     // =========================================================
     // 🔥 NETTOYAGE CLOUDFLARE R2 : Récupération et suppression des fichiers
     // =========================================================
@@ -184,13 +174,11 @@ async unlinkAccount(userId: string) {
         where: { id: usersStravaId },
       });
 
-      // f. Supprimer l'intégration d'authentification OAuth
       await tx.integration.delete({
         where: { id: integration.id },
       });
     });
 
-    // Nettoyage final des activités qui n'ont plus ni Strava ni Upload manuel
     this.cleanIncompleteActivities(userId);
 
     this.logger.log(`[Déliaison] Compte Strava délié avec succès pour l'utilisateur ${userId}`);
@@ -417,6 +405,8 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       });
 
       await this.upsertStravaActivities(userStrava, recentActivities);
+
+      await this.statsService.recomputeGlobalStats(userId);
       
     } catch (error) {
       console.error(`[Strava First Sync Error]`, error);
