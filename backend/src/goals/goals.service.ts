@@ -242,25 +242,52 @@ export class GoalsService {
     const metric = await this.prisma.metric.findUnique({ where: { id: metricId } });
     if (!metric) throw new NotFoundException('Métrique introuvable.');
 
-    const getPreviousMonth = () => {
-      const now = new Date();
-      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
-    };
-
     if (templateType === 'user_defined') {
-      const previousMonth = getPreviousMonth();
-      const prevComputed = await this.prisma.computedMetric.findFirst({
-        where: { userId, metricKey: metric.key, period: previousMonth },
+      // 1. On récupère le record personnel absolu (PR) pour cette métrique
+      const pr = await this.prisma.personalRecord.findFirst({
+        where: { userId, metricId: metric.id },
+        orderBy: { value: 'desc' },
       });
+      const recordValue = pr ? pr.value : 0;
 
-      const lastMonthValue = prevComputed ? prevComputed.value : 0;
+      // 2. On catégorise la métrique (Volume vs Record)
+      const isVolumeMetric = ['ride_count', 'distance_km', 'elevation_gain', 'duration_hours', 'calories'].includes(metric.key);
 
-      return {
-        suggestedValue: lastMonthValue,
-        metricId,
-        context: `Mois dernier (${previousMonth}) : ${lastMonthValue} ${metric.unit || ''}. Saisissez votre valeur cible ci-dessous.`,
-      };
+      if (isVolumeMetric) {
+        // --- LOGIQUE VOLUME (Basée sur le mois précédent) ---
+        const now = new Date();
+        const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const previousMonth = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+        
+        const prevComputed = await this.prisma.computedMetric.findFirst({
+          where: { userId, metricKey: metric.key, period: previousMonth },
+        });
+
+        const lastMonthValue = prevComputed ? prevComputed.value : 0;
+        
+        // On suggère de faire 5% de plus que le mois dernier (ou 0 par défaut)
+        const suggestedValue = lastMonthValue > 0 ? Math.round(lastMonthValue * 1.05) : 0;
+
+        return {
+          suggestedValue,
+          metricId,
+          context: `Mois dernier : ${lastMonthValue} ${metric.unit || ''}. Objectif suggéré (+5%) : ${suggestedValue} ${metric.unit || ''}.`,
+        };
+      } else {
+        // --- LOGIQUE RECORDS & PUISSANCE (Basée sur les Personal Records) ---
+        // On suggère de battre le record actuel de 2% (arrondi)
+        const suggestedValue = recordValue > 0 ? Math.round(recordValue * 1.02) : 0;
+        
+        const contextMsg = recordValue > 0 
+          ? `Votre record absolu (PR) est de ${recordValue} ${metric.unit || ''}. L'objectif suggéré est de le battre : ${suggestedValue} ${metric.unit || ''}.`
+          : `Aucun record enregistré pour le moment. Saisissez votre première cible !`;
+
+        return {
+          suggestedValue,
+          metricId,
+          context: contextMsg,
+        };
+      }
     }
 
     throw new Error('Type de template non pris en charge.');
