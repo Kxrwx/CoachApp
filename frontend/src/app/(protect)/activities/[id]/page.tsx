@@ -60,7 +60,7 @@ export default function ActivityDetailPage() {
     if (!window.confirm("Supprimer définitivement cette activité et toutes ses données Cloud R2 ?")) return;
     setDeleting(true);
     try {
-      const res = await api(`/activities/${id}`, { method: "DELETE" });
+      const res = await api(`/upload/activity/${id}`, { method: "DELETE" });
       if (res.ok) router.push("/activities");
     } catch (err) {
       console.error(err);
@@ -204,6 +204,8 @@ export default function ActivityDetailPage() {
             </div>
           </div>
 
+          {viewMode === "strava" ? null : (
+
           <div className="bg-white border border-slate-200/60 rounded-[2.5rem] p-8 shadow-sm">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Fichiers Stockage Cloud</p>
             <div className="space-y-3">
@@ -213,16 +215,26 @@ export default function ActivityDetailPage() {
               <MetaRow label="Objets R2 Liés" value={`${activity.storage?.length || 0} fichier(s)`} color="text-indigo-600 font-bold" />
             </div>
             
-            <button 
-              onClick={handleDelete}
-              disabled={deleting}
-              className="w-full mt-8 flex items-center justify-center gap-2 text-red-500 hover:bg-red-50 border border-red-100 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
-            >
-              {deleting ? <Loader2 className="animate-spin" size={14} /> : <><Trash2 size={14} /> Supprimer l'activité</>}
-            </button>
-          </div>
+            
+  <button 
+    onClick={handleDelete}
+    disabled={deleting}
+    className="w-full mt-8 flex items-center justify-center gap-2 text-red-500 hover:bg-red-50 border border-red-100 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+  >
+    {deleting ? (
+      <Loader2 className="animate-spin" size={14} />
+    ) : (
+      <>
+        <Trash2 size={14} /> Supprimer l'activité
+      </>
+    )}
+  </button>
 
+            
+          </div>
+)}
         </div>
+        
       </div>
     </div>
   );

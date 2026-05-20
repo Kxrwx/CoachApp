@@ -32,7 +32,6 @@ export class R2Service {
       });
 
       const response = await this.s3Client.send(command);
-      // Transformation du stream en Buffer exploitable par FitParser
       const byteArray = await response.Body?.transformToByteArray();
       if (!byteArray) throw new Error("Fichier vide ou corrompu.");
       
