@@ -1,3 +1,4 @@
+// src/stats/stats.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; 
 import { startOfMonth, startOfYear } from 'date-fns';
@@ -9,11 +10,17 @@ export class StatsService {
 
   constructor(private prisma: PrismaService) {}
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => Recalcule les statistiques globales de l'utilisateur en agrégeant les données de Strava et des activités manuelles (uploads), et met à jour la table stats en conséquence. À appeler lors d'un lien/délien de compte Strava, ou après un upload manuel.
+   * @memberof StatsService
+   */
   async recomputeGlobalStats(userId: string) {
     try {
       this.logger.log(`[Stats] Début du recalcul des statistiques globales pour ${userId}`);
 
-      // 1. On trouve d'abord le profil Strava lié à cet utilisateur global
       const userStrava = await this.prisma.usersStrava.findFirst({
         where: {
           integration: {
@@ -23,14 +30,12 @@ export class StatsService {
         }
       });
 
-      // 2. On récupère les stats Strava en utilisant l'ID du profil Strava (s'il existe)
       const stravaStats = userStrava 
         ? await this.prisma.stravaStats.findMany({
             where: { userId: userStrava.id },
           })
         : [];
 
-      // 3. On récupère les activités manuelles (Upload)
       const manualActivities = await this.prisma.activity.findMany({
         where: { 
           userId, 
@@ -128,7 +133,6 @@ export class StatsService {
         await this.prisma.$transaction(upserts);
       }
 
-      // 5. Nettoyage des périodes obsolètes (ex: si des mois disparaissent après un Unlink Strava)
       const periodsToKeep = Array.from(aggregatedStats.keys());
       await this.prisma.stats.deleteMany({
         where: {
@@ -143,12 +147,14 @@ export class StatsService {
     }
   }
 
-  // ============================================================
-  // LOGIQUE DE DELTA (AJOUT / RETRAIT)
-  // ============================================================
 
   /**
-   * À appeler AVANT de supprimer le compte Strava dans StravaService
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} userStravaId => l'id strava de l'utilisateur
+   * @return {*} => Recalcule les statistique en enlevant les stats de Strava
+   * @memberof StatsService
    */
   async subtractStravaStats(userId: string, userStravaId: string) {
     this.logger.log(`[Stats] Soustraction des stats Strava pour l'utilisateur ${userId}`);
@@ -159,7 +165,6 @@ export class StatsService {
 
     if (stravaStats.length === 0) return;
 
-    // On prépare les décrémentations
     const updates = stravaStats.map((stat) =>
       this.prisma.stats.updateMany({
         where: { userId, periodType: stat.periodType },
@@ -173,7 +178,6 @@ export class StatsService {
 
     await this.prisma.$transaction(updates);
 
-    // Nettoyage : on supprime les périodes qui tombent à 0 activité
     await this.prisma.stats.deleteMany({
       where: { userId, count: { lte: 0 } },
     });
@@ -181,8 +185,16 @@ export class StatsService {
     this.logger.log(`[Stats] Soustraction terminée. ${stravaStats.length} périodes ajustées.`);
   }
 
+
   /**
-   * À appeler lors d'un NOUVEL upload dans UploadService
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {number} distance => distance a ajouter
+   * @param {number} elevation => elevation a ajouter
+   * @param {Date} date => date de l'activité
+   * @return {*} => Ajoute les stats d'une activité manuelle (upload) aux stats globales de l'utilisateur, en mettant à jour les périodes ride_all, year_YYYY et month_YYYY_MM correspondantes. À appeler lors de l'ajout d'une activité manuelle.
+   * @memberof StatsService
    */
   async addUploadStats(userId: string, distance: number, elevation: number, date: Date) {
     const yearKey = `year_${date.getFullYear()}`;
@@ -218,8 +230,16 @@ export class StatsService {
     this.logger.log(`[Stats] Activité manuelle ajoutée aux stats globales de ${userId}.`);
   }
 
+
   /**
-   * À appeler lors de la SUPPRESSION d'un upload dans UploadService
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {number} distance => distance a soustraire
+   * @param {number} elevation => elevation a soustrire
+   * @param {Date} date => date de l'activité
+   * @return {*} => Retire les stats d'une activité manuelle (upload) des stats globales de l'utilisateur, en mettant à jour les périodes ride_all, year_YYYY et month_YYYY correspondantes. À appeler lors de la suppression d'une activité manuelle.
+   * @memberof StatsService
    */
   async removeUploadStats(userId: string, distance: number, elevation: number, date: Date) {
     const yearKey = `year_${date.getFullYear()}`;
@@ -247,13 +267,19 @@ export class StatsService {
     this.logger.log(`[Stats] Activité manuelle retirée des stats globales de ${userId}.`);
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur 
+   * @return {*} => recupere les stats globals de l'utilisateur pour le dashboard : stats all_time + stats des 12 derniers mois + stats des 6 derniers mois
+   * @memberof StatsService
+   */
   async getUserDashboardStats(userId: string) {
     const allStats = await this.prisma.stats.findMany({
       where: { userId },
-      orderBy: { periodStart: 'desc' }, // Trie du plus récent au plus ancien
+      orderBy: { periodStart: 'desc' }, 
     });
 
-    // On sépare intelligemment les données pour faciliter le travail du front
     const allTime = allStats.find(s => s.periodType === 'ride_all') || { 
       distance: 0, 
       elevation: 0, 
@@ -270,6 +296,13 @@ export class StatsService {
     };
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @return {*} => recupere les stats all_time de l'utilisateur
+   * @memberof StatsService
+   */
   async getAllTimeStats(userId: string) {
     const stats = await this.prisma.stats.findUnique({
       where: {
@@ -280,6 +313,14 @@ export class StatsService {
     return stats || { distance: 0, elevation: 0, count: 0 };
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur 
+   * @param {number} year => années des stats a recupéré
+   * @return {*} => recupere les stats de 'year'
+   * @memberof StatsService
+   */
   async getYearlyStats(userId: string, year: number) {
     const periodType = `year_${year}`;
     const stats = await this.prisma.stats.findUnique({
@@ -291,6 +332,15 @@ export class StatsService {
     return stats || { distance: 0, elevation: 0, count: 0, periodType };
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur 
+   * @param {number} year => année des stats a recupéré
+   * @param {number} month => mois des stats a recupéré
+   * @return {*} => recupere les stats de 'month'
+   * @memberof StatsService
+   */
   async getMonthlyStats(userId: string, year: number, month: number) {
     const periodType = `month_${year}_${month}`;
     const stats = await this.prisma.stats.findUnique({

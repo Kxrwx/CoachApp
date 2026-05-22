@@ -1,3 +1,4 @@
+// src/auth/auth.controller.ts
 import {
   Controller,
   Post,
@@ -19,7 +20,6 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // --- SIGNUP ---
   @UseGuards(ThrottlerGuard)
   @Post('signup')
   async signUp(
@@ -39,7 +39,6 @@ export class AuthController {
     return { access_token: tokens.access_token };
   }
 
-  // --- SIGNIN ---
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @Post('signin')
@@ -60,7 +59,6 @@ export class AuthController {
     return { access_token: tokens.access_token };
   }
 
-  // --- LOGOUT ---
   @UseGuards(ThrottlerGuard)
   @UseGuards(AuthGuard)
   @Post('logout')
@@ -77,7 +75,6 @@ export class AuthController {
     return { message: 'Déconnecté' };
   }
 
-  // --- ME ---
   @UseGuards(AuthGuard)
   @Get('me')
   async getMe(@Req() req: any) {
@@ -88,7 +85,6 @@ export class AuthController {
     return { user };
   }
 
-  // --- UPDATE ME ---
 @UseGuards(ThrottlerGuard)
 @UseGuards(AuthGuard)
 @Post('update')
@@ -116,7 +112,6 @@ async updateMe(
   return { message: 'Paramètres mis à jour' };
 }
 
-  // --- REFRESH ---
   @UseGuards(ThrottlerGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)

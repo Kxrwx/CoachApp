@@ -1,4 +1,4 @@
-
+// src/strava/strava.service.ts
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
@@ -45,6 +45,15 @@ export class StravaService {
     return `${rootUrl}?${qs.toString()}`;
   }
 
+  //TODO : retravail le link a strava en recalculent proprement Stats
+  /**
+   *
+   *
+   * @param {string} userId => id de l'utilisateur de l'app
+   * @param {string} code => code temporaire fourni par Strava après redirection, à échanger contre les tokens d'accès
+   * @return {*} => lie le compte Strava à l'utilisateur de l'app + remplie statsStrava avec des stats general de strava + enregistrement des activitées des 30 derniers jours en stockent des polylines sur R2 + remplie Integration et UserStrava dans la BDD + mets a jour les stats globals
+   * @memberof StravaService
+   */
   async linkAccount(userId: string, code: string) {
     try {
       const response = await axios.post('https://www.strava.com/oauth/token', {
@@ -103,9 +112,17 @@ export class StravaService {
     }
   }
 
+
+  //TODO : retravail le unlink a strava en recalculent proprement Stats
+/**
+ *
+ *
+ * @param {string} userId => id de l'utilisateur de l'app
+ * @return {*} => nettoie la db de toutes les données liées à Strava pour cet utilisateur (intégration, usersStrava, stravaActivity, stravaStats, storageMetadata des polylines) + supprime les fichiers de polylines sur R2 + met à jour les activités génériques en retirant les liens vers Strava (idStrava mis à null) + recalcul des stats globales
+ * @memberof StravaService
+ */
 async unlinkAccount(userId: string) {
   try {
-    // 1. Récupérer l'intégration et le compte Strava associé
     const integration = await this.prisma.integration.findUnique({
       where: { userId_provider: { userId, provider: 'STRAVA' } },
       include: { usersStrava: true },
@@ -117,10 +134,6 @@ async unlinkAccount(userId: string) {
 
     const usersStravaId = integration.usersStrava.id;
     await this.statsService.subtractStravaStats(userId, usersStravaId);
-    // =========================================================
-    // 🔥 NETTOYAGE CLOUDFLARE R2 : Récupération et suppression des fichiers
-    // =========================================================
-    // On cible toutes les métadonnées de stockage Strava liées aux activités de cet utilisateur
     const stravaStorageMetadatas = await this.prisma.storageMetadata.findMany({
       where: {
         source: StorageSource.STRAVA,
@@ -131,7 +144,6 @@ async unlinkAccount(userId: string) {
       select: { id: true, r2Key: true },
     });
 
-    // Suppression physique des fichiers texte sur R2
     if (stravaStorageMetadatas.length > 0) {
       this.logger.log(`[Déliaison] Suppression de ${stravaStorageMetadatas.length} polylines sur R2 pour l'utilisateur ${userId}`);
       for (const meta of stravaStorageMetadatas) {
@@ -139,28 +151,22 @@ async unlinkAccount(userId: string) {
       }
     }
 
-    // =========================================================
-    // TRANSACTION PRISMA : Nettoyage complet de la BDD
-    // =========================================================
     await this.prisma.$transaction(async (tx) => {
-      // a. On supprime d'abord les lignes de métadonnées maintenant que R2 est propre
       if (stravaStorageMetadatas.length > 0) {
         await tx.storageMetadata.deleteMany({
           where: { id: { in: stravaStorageMetadatas.map((m) => m.id) } },
         });
       }
 
-      // b. Supprimer les détails d'activités Strava en BDD
       await tx.stravaActivity.deleteMany({
         where: { userStravaId: usersStravaId },
       });
 
-      // c. Supprimer les statistiques accumulées
       await tx.stravaStats.deleteMany({
         where: { userId: usersStravaId },
       });
 
-      // d. Rompre le lien avec la table générique des activités de l'utilisateur
+
       await tx.activity.updateMany({
         where: { 
           userId: userId,
@@ -169,7 +175,6 @@ async unlinkAccount(userId: string) {
         data: { idStrava: null },
       });
 
-      // e. Supprimer le profil utilisateur Strava
       await tx.usersStrava.delete({
         where: { id: usersStravaId },
       });
@@ -184,7 +189,6 @@ async unlinkAccount(userId: string) {
     this.logger.log(`[Déliaison] Compte Strava délié avec succès pour l'utilisateur ${userId}`);
     return { success: true };
   } catch (error) {
-    // Gestion propre du log de l'erreur avec notre Logger
     const errorMessage = error instanceof Error ? error.stack : String(error);
     this.logger.error(`Échec de la déliaison avec Strava pour l'utilisateur ${userId}`, errorMessage);
     
@@ -192,10 +196,29 @@ async unlinkAccount(userId: string) {
     throw new BadRequestException("Échec de la déliaison avec Strava");
   }
 }
+
+
+/**
+ *
+ *
+ * @private
+ * @param {number} val => la valeur a arrondir
+ * @param {number} [decimals=2] => le nombre apres la virgule
+ * @return {*}  {number} => renvoie la valeur arrondir
+ * @memberof StravaService
+ */
 private round(val: number, decimals: number = 2): number {
     return Math.round(val * Math.pow(10, decimals)) / Math.pow(10, decimals);
   }
 
+/**
+ *
+ *
+ * @private
+ * @param {(string | number)} stravaAthleteId => l'id du profil Strava de l'utilisateur
+ * @return {*}  => Récupère les activités Strava des 30 derniers jours, les stats globales de Strava, mets à jour les stats globales de l'utilisateur en retirant les anciennes stats Strava et en ajoutant les nouvelles, mets à jour les records personnels, stocke les polylines des activités récentes sur R2 et nettoie les anciennes données liées à Strava dans la BDD et sur R2
+ * @memberof StravaService
+ */
 private async syncStatsStrava(stravaAthleteId: string | number) {
     try {
       const now = new Date();
@@ -214,9 +237,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       const userId = userStrava.integration.userId;
       const { accessToken, externalUserId } = userStrava.integration;
 
-      // =====================================
-      // 1. FETCH ALL ACTIVITIES (PAGINATION)
-      // =====================================
       const allActivities: any[] = []; 
       let page = 1;
       const fiveYearsAgo = subYears(new Date(), 5);
@@ -287,7 +307,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       },
     });
 
-    // CURRENT YEAR (API)
     statsToSave.push({
       type: `year_${now.getFullYear()}`,
       periodStart: startOfYear(now),
@@ -364,7 +383,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
         (activity) => new Date(activity.start_date).getTime() >= thirtyDaysAgo.getTime()
       );
 
-      // 🔥 NOUVEAU : Récupération des métadonnées R2 pour les activités Strava obsolètes avant suppression
       const oldStorageMetadata = await this.prisma.storageMetadata.findMany({
         where: {
           source: StorageSource.STRAVA,
@@ -375,19 +393,16 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
         },
       });
 
-      // Suppression physique des fichiers sur Cloudflare R2
       for (const meta of oldStorageMetadata) {
         await this.r2Service.deleteFile(meta.r2Key);
       }
 
-      // Suppression des lignes de métadonnées associées
       if (oldStorageMetadata.length > 0) {
         await this.prisma.storageMetadata.deleteMany({
           where: { id: { in: oldStorageMetadata.map((m) => m.id) } },
         });
       }
 
-      // ÉTAPE DE SÉCURITÉ BDD : On casse le lien pour les activités de plus de 30 jours
       await this.prisma.activity.updateMany({
         where: {
           userId: userId,
@@ -413,6 +428,15 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
     }
   }
 
+  /**
+   *
+   *
+   * @private
+   * @param {UsersStravaWithIntegration} userStrava => info du compte Strava de l'utilisateur
+   * @param {any[]} activities => les activités Strava à upsert (généralement celles des 30 derniers jours)
+   * @return {*} => upsert les activités Strava récentes : crée ou met à jour les entrées dans stravaActivity, lie les activités génériques existantes si possible (en se basant sur idStrava ou la date), stocke les polylines sur R2 et nettoie les anciennes données liées à Strava
+   * @memberof StravaService
+   */
   private async upsertStravaActivities(
     userStrava: UsersStravaWithIntegration,
     activities: any[]
@@ -421,7 +445,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
 
     const userId = userStrava.integration.userId;
 
-    // 1. CHARGEMENT DE L'EXISTANT
     const existing = await this.prisma.activity.findMany({
       where: { userId },
       select: { id: true, idStrava: true, startDate: true },
@@ -463,7 +486,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       }
     }
 
-    // 🔥 ÉTAPE A : UPSERT STRAVA ACTIVITY (LE PARENT)
     await this.prisma.$transaction(
       stravaWrites.map((w) =>
         this.prisma.stravaActivity.upsert({
@@ -496,7 +518,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       )
     );
 
-    // 🔥 ÉTAPE B : CREATE MISSING ACTIVITIES
     if (toCreateActivities.length > 0) {
       await this.prisma.activity.createMany({
         data: toCreateActivities,
@@ -504,7 +525,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       });
     }
 
-    // 🔥 ÉTAPE C : APPLY LINKS
     if (linkUpdates.length > 0) {
       await this.prisma.$transaction(
         linkUpdates.map((l) =>
@@ -516,10 +536,6 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       );
     }
 
-    // =====================================
-    // 🔥 ÉTAPE D : EXTRACTION ET UPSERT DE LA POLYLINE DANS CLOUDFLARE R2
-    // =====================================
-    // On récupère toutes les activités liées pour avoir l'ID interne de notre table générique 'Activity'
     const finalLinkedActivities = await this.prisma.activity.findMany({
       where: {
         userId,
@@ -533,30 +549,23 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       if (fa.idStrava) activityIdByStravaId.set(fa.idStrava, fa.id);
     }
 
-    // On boucle sur nos écritures pour pousser uniquement la polyline sur R2
     for (const w of stravaWrites) {
       const activityId = activityIdByStravaId.get(w.id);
       if (!activityId) continue;
 
-      // 1. Extraction de la polyline textuelle de l'objet map de Strava
       const polyline = w.act.map?.summary_polyline;
       
-      // Si Strava n'a pas généré de carte pour cette activité (ex: saisie manuelle sans GPS), on skip
       if (!polyline) {
         this.logger.warn(`Aucune polyline trouvée pour l'activité Strava ID : ${w.id}. Stockage R2 ignoré.`);
         continue;
       }
 
-      // 2. Définition d'une clé R2 propre avec l'extension .txt
       const r2Key = `users/${userId}/strava/${w.id}_polyline.txt`;
       
-      // Conversion de la chaîne de caractères brute en Buffer (encodé en UTF-8)
       const fileBuffer = Buffer.from(polyline, 'utf-8');
 
-      // 3. Envoi vers R2 sous le type MIME 'text/plain' (écrase si déjà existant)
       await this.r2Service.uploadOrUpdateFile(r2Key, fileBuffer, 'text/plain');
 
-      // 4. Enregistrement / Mise à jour des métadonnées de stockage dans PostgreSQL
       await this.prisma.storageMetadata.upsert({
         where: { r2Key },
         update: {
@@ -574,6 +583,14 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
     }
   }
 
+/**
+ *
+ *
+ * @private
+ * @param {string} userId => l'id de l'utilisateur de l'app
+ * @return {*} => Supprime les activités génériques qui sont liées à Strava (idStrava ou idUpload non null) mais qui n'ont pas de correspondance dans stravaActivity (idStrava null ou idUpload null), afin de nettoyer les activités incomplètes qui pourraient fausser les stats globales
+ * @memberof StravaService
+ */
 private async cleanIncompleteActivities(userId: string) {
   try {
     const deleted = await this.prisma.activity.deleteMany({
@@ -594,20 +611,27 @@ private async cleanIncompleteActivities(userId: string) {
   }
 }
 
+/**
+ *
+ *
+ * @private
+ * @param {string} userId => l'id de l'utilisateur de l'app
+ * @param {any[]} allActivities => tout les activitées strava recupéré
+ * @return {*} => mets à jour les records personnels
+ * @memberof StravaService
+ */
 private async updatePersonalRecords(
   userId: string,
   allActivities: any[],
 ) {
-  // 1. Sécurité d'entrée
+
   if (!allActivities?.length) return;
 
-  // 2. On garde tous les types de vélo
   const rideTypes = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'];
   const rides = allActivities.filter((a) => rideTypes.includes(a.type));
 
   if (!rides.length) return;
 
-  // 🔥 TOUS les records possibles du seed
   const METRICS_MAP: Record<string, { extract: (act: any) => number | undefined; convert: (val: number) => number }> = {
     'ride_max_distance_km': {
       extract: (act) => act.distance ? act.distance / 1000 : undefined,
@@ -657,15 +681,12 @@ private async updatePersonalRecords(
 
   const candidates: Array<{ metricKey: string; value: number; achievedAt: Date }> = [];
 
-  // 3. Extraction et conversion des données de l'API Strava
   for (const act of rides) {
     const date = new Date(act.start_date || act.start_date_local);
 
-    // 🔥 Boucle sur tous les metrics disponibles
     for (const [metricKey, { extract, convert }] of Object.entries(METRICS_MAP)) {
       const rawValue = extract(act);
 
-      // Validation : > 0 et pas NaN
       if (rawValue && !isNaN(rawValue) && rawValue > 0) {
         const convertedValue = convert(rawValue);
         candidates.push({
@@ -682,7 +703,6 @@ private async updatePersonalRecords(
     return;
   }
 
-  // 4. Extraction du maximum absolu par métrique (All-Time)
   const bestByMetric = new Map<string, { value: number; date: Date }>();
 
   for (const pr of candidates) {
@@ -695,7 +715,6 @@ private async updatePersonalRecords(
     }
   }
 
-  // 5. Récupération des IDs des métriques en BDD
   const metrics = await this.prisma.metric.findMany({
     where: {
       key: { in: Array.from(bestByMetric.keys()) },
@@ -706,7 +725,6 @@ private async updatePersonalRecords(
   const metricMap = new Map(metrics.map((m) => [m.key, m.id]));
   const upserts: Prisma.PrismaPromise<any>[] = [];
 
-  // 6. Préparation de la sauvegarde forcée en base de données
   for (const [metricKey, best] of bestByMetric.entries()) {
     const metricId = metricMap.get(metricKey);
     
@@ -741,7 +759,6 @@ private async updatePersonalRecords(
     );
   }
 
-  // 7. Exécution globale et atomique
   if (upserts.length > 0) {
     await this.prisma.$transaction(upserts);
     this.logger.log(`[PR Sync] ${upserts.length} records mis à jour avec succès pour l'utilisateur ${userId}`);

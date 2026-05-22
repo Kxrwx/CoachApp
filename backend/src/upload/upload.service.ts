@@ -1,3 +1,4 @@
+// src/upload/upload.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -32,10 +33,16 @@ export class UploadService {
     private statsService: StatsService,
   ) {}
 
-  // ============================================================
-  // EXTRACTION DES MÉTRIQUES
-  // ============================================================
 
+  /**
+   *
+   *
+   * @private
+   * @param {Buffer} buffer => fichier a traiter
+   * @param {string} extension => extension du fichier a traiter (gpx ou fit)
+   * @return {*} => traite un fichier gpx ou fit et retourne les données décodées (date de début, distance, dénivelé, etc.)
+   * @memberof UploadService
+   */
   private async extractActivityMetrics(
     buffer: Buffer,
     extension: string,
@@ -45,8 +52,15 @@ export class UploadService {
     throw new BadRequestException('Format non pris en charge.');
   }
 
-  // ── GPX ─────────────────────────────────────────────────────
 
+  /**
+   *
+   *
+   * @private
+   * @param {Buffer} buffer => fichier a traiter
+   * @return {*} => retourne les data du GPX sous forme de valeurs numériques (distance, dénivelé, etc.) et la date de début de l'activité
+   * @memberof UploadService
+   */
   private extractGpxMetrics(buffer: Buffer): ExtractedActivityMetrics {
     const content = buffer.toString('utf-8');
 
@@ -79,9 +93,16 @@ export class UploadService {
     return { startDate, metrics };
   }
 
-  // ── FIT ─────────────────────────────────────────────────────
 
 
+  /**
+   *
+   *
+   * @private
+   * @param {Buffer} buffer => fichier a traiter
+   * @return {*} => traite un fichier fit et retourne les données décodées (date de début, distance, dénivelé, etc.)
+   * @memberof UploadService
+   */
   private extractFitMetrics(buffer: Buffer): Promise<ExtractedActivityMetrics> {
     return new Promise((resolve, reject) => {
       const fitParser = new FitParser({ force: true, mode: 'cascade' });
@@ -98,7 +119,6 @@ export class UploadService {
           return reject(new BadRequestException('Aucune session trouvée dans le fichier FIT.'));
         }
 
-        // Date de début
         const startRaw =
           session.start_time ??
           activity.timestamp ??
@@ -111,41 +131,32 @@ export class UploadService {
 
         const metrics: Record<string, number> = {};
 
-        // Distance (m → km)
         if (session.total_distance > 0) {
           metrics['ride_max_distance_km'] = round(session.total_distance / 1000);
         }
 
-        // Dénivelé positif (m)
         if (session.total_ascent > 0) {
           metrics['ride_max_elevation_gain'] = round(session.total_ascent);
         }
 
-        // Durée (s → h)
         if (session.total_elapsed_time > 0) {
           metrics['ride_max_duration_hours'] = round(session.total_elapsed_time / 3600);
         }
 
-        // Puissance moyenne (W) — absent sur fichiers sans capteur de puissance
         if (session.avg_power > 0) {
           metrics['ride_max_avg_watts'] = round(session.avg_power);
         }
 
-        // Cadence (rpm)
         if (session.avg_cadence > 0) metrics['cadence_avg'] = round(session.avg_cadence);
         if (session.max_cadence > 0) metrics['cadence_max'] = round(session.max_cadence);
 
-        // Fréquence cardiaque (bpm)
         if (session.avg_heart_rate > 0) metrics['hr_avg'] = round(session.avg_heart_rate);
         if (session.max_heart_rate > 0) metrics['hr_max'] = round(session.max_heart_rate);
 
-        // Vitesse (m/s → km/h)
         if (session.avg_speed > 0) metrics['speed_avg'] = round(session.avg_speed * 3.6);
         if (session.max_speed > 0) metrics['speed_max'] = round(session.max_speed * 3.6);
 
-        // Kilojoules
         if (session.total_work > 0) {
-          // total_work est en joules dans le protocole FIT
           metrics['kj_total'] = round(session.total_work / 1000);
         } else if (session.kilojoules > 0) {
           metrics['kj_total'] = round(session.kilojoules);
@@ -160,6 +171,17 @@ export class UploadService {
     });
   }
 
+  /**
+   *
+   *
+   * @private
+   * @param {number} lat1 => latitude du point 1
+   * @param {number} lon1 => longitude du point 1
+   * @param {number} lat2 => latitude du point 2
+   * @param {number} lon2 => longitude du point 2
+   * @return {*} => retourne la distance en kilomètres entre les deux points géographiques
+   * @memberof UploadService
+   */
   private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -171,10 +193,15 @@ export class UploadService {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  // ============================================================
-  // HANDLE FILE UPLOAD — point d'entrée principal
-  // ============================================================
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {Express.Multer.File} file => fichier uploadé par l'utilisateur
+   * @return {*} => traite le fichier uploadé, extrait les données, les stocke, crée ou met à jour l'activité correspondante, et met à jour les records personnels et stats de l'utilisateur
+   * @memberof UploadService
+   */
   async handleFileUpload(userId: string, file: Express.Multer.File) {
     if (!file) throw new BadRequestException('Fichier manquant');
 
@@ -231,7 +258,6 @@ export class UploadService {
         return { activityId: activity.id, dataId, startDate: parsedData.startDate };
       });
 
-      // Mise à jour des personal records (hors transaction, non bloquant pour le retour client)
       await this.updatePersonalRecords(userId, parsedData.metrics, parsedData.startDate);
       await this.statsService.addUploadStats(userId, fileDistance, fileElevation, parsedData.startDate);
 
@@ -242,11 +268,17 @@ export class UploadService {
     }
   }
 
-  // ============================================================
-  // MISE À JOUR DES PERSONAL RECORDS
-  // Logique : upsert uniquement si la valeur dépasse le record all_time existant.
-  // ============================================================
 
+  /**
+   *
+   *
+   * @private
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {Record<string, number>} incomingMetrics => les métriques extraites du fichier uploadé (distance, dénivelé, etc.)
+   * @param {Date} achievedAt => la date de début de l'activité uploadée
+   * @return {*} => compare les métriques extraites du fichier avec les records personnels existants de l'utilisateur, et met à jour les records si les nouvelles valeurs sont meilleures
+   * @memberof UploadService
+   */
   private async updatePersonalRecords(
     userId: string,
     incomingMetrics: Record<string, number>,
@@ -259,7 +291,7 @@ export class UploadService {
     }
 
     try {
-      // 1. Résolution des IDs depuis les clés du seed
+
       const dbMetrics = await this.prisma.metric.findMany({
         where: { key: { in: metricKeys } },
         select: { id: true, key: true },
@@ -272,7 +304,6 @@ export class UploadService {
         }
       }
 
-      // 2. Records all_time actuels
       const currentRecords = await this.prisma.personalRecord.findMany({
         where: {
           userId,
@@ -289,7 +320,6 @@ export class UploadService {
 
         const existing = currentRecords.find((r) => r.metricId === metricId);
 
-        // Mise à jour uniquement si nouveau record absolu
         if (!existing || value > existing.value) {
           upserts.push(
             this.prisma.personalRecord.upsert({
@@ -314,10 +344,16 @@ export class UploadService {
     }
   }
 
-  // ============================================================
-  // SUPPRESSION D'UN UPLOAD
-  // ============================================================
 
+
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} activityId => l'id de l'activité de l'upload a delete
+   * @return {*} => supprime une actité de R2
+   * @memberof UploadService
+   */
   async deleteUpload(userId: string, activityId: string) {
     try {
       const activity = await this.prisma.activity.findFirst({
@@ -352,10 +388,15 @@ export class UploadService {
     }
   }
 
-  // ============================================================
-  // NETTOYAGE DES ACTIVITÉS ORPHELINES
-  // ============================================================
 
+  /**
+   *
+   *
+   * @private
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => supprime les activités orphelines (sans idStrava ni idUpload) de l'utilisateur, généralement après une suppression d'upload
+   * @memberof UploadService
+   */
   private async cleanIncompleteActivities(userId: string) {
     try {
       const deleted = await this.prisma.activity.deleteMany({

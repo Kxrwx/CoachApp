@@ -1,3 +1,4 @@
+// src/activities/activities.controller.ts
 import { Controller, Get, Param, UseGuards, Req } from '@nestjs/common';
 import { ActivitiesService } from './activities.service';
 import { AuthGuard } from '../auth/auth.guard';

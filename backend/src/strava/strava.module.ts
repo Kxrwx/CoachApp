@@ -1,3 +1,4 @@
+// src/strava/strava.module.ts
 import { Logger, Module } from '@nestjs/common';
 import { StravaService } from './strava.service';
 import { StravaController } from './strava.controller';

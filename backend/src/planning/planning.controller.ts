@@ -1,3 +1,4 @@
+// src/planning/planning.controller.ts
 import {
   Controller,
   Get,
@@ -13,7 +14,6 @@ import {
 import { PlanningService } from './planning.service';
 import { AuthGuard } from '../auth/auth.guard';
 
-// Types locaux pour s'affranchir du fichier DTO externe
 export interface CreatePlannedWorkoutInput {
   title: string;
   description?: string;

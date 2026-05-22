@@ -1,3 +1,4 @@
+// src/planning/planning.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { rrulestr } from 'rrule';
@@ -7,8 +8,14 @@ import { CreatePlannedWorkoutInput, UpdatePlannedWorkoutInput } from './planning
 export class PlanningService {
   constructor(private prisma: PrismaService) {}
 
+
   /**
-   * Crée un nouvel entraînement planifié
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {CreatePlannedWorkoutInput} data => les données a insérer dans workout planifié
+   * @return {*} => crée un entraînement planifié dans la base de données
+   * @memberof PlanningService
    */
   async createPlannedWorkout(
     userId: string,
@@ -16,7 +23,7 @@ export class PlanningService {
   ) {
     const workoutDate = new Date(data.startDate);
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // On remet l'heure à minuit pour ne comparer que les jours
+  today.setHours(0, 0, 0, 0); 
 
   if (workoutDate < today) {
     throw new BadRequestException("Impossible de planifier un entraînement dans le passé.");
@@ -47,8 +54,13 @@ export class PlanningService {
     });
   }
 
+
   /**
-   * Récupère les événements du calendrier (-30 à +30 jours)
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => recupere tout les entrainement planifié de l'user
+   * @memberof PlanningService
    */
   async getCalendarEvents(userId: string) {
     const now = new Date();
@@ -102,8 +114,16 @@ export class PlanningService {
     };
   }
 
+
   /**
-   * Déplie les événements récurrents selon la règle RRULE
+   *
+   *
+   * @private
+   * @param {any[]} workouts => les entrainement planifié a potentiellement dupliquer si ils sont récurrent
+   * @param {Date} startDate => la date de début de la période d'affichage du calendrier
+   * @param {Date} endDate => la date de fin de la période d'affichage du calendrier
+   * @return {*} => retourne la liste des entrainement planifié avec les récurrences dupliquées pour les entrainement récurrent
+   * @memberof PlanningService
    */
   private expandRecurringEvents(
     workouts: any[],
@@ -121,12 +141,10 @@ export class PlanningService {
       }
 
       try {
-        // Correction ici : on ne passe que dtstart à rrulestr
         const rule = rrulestr(workout.rrule, {
           dtstart: workout.startDate,
         });
 
-        // C'est ici que la magie de la limitation de date opère déjà !
         const occurrences = rule.between(startDate, endDate, true);
 
         occurrences.forEach((occurrence) => {
@@ -148,7 +166,13 @@ export class PlanningService {
   }
 
   /**
-   * Met à jour un entraînement planifié
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} id => l'id de l'entrainement a modfier
+   * @param {UpdatePlannedWorkoutInput} data => les données de mise à jour pour l'entrainement
+   * @return {*} => met à jour un entraînement planifié dans la base de données
+   * @memberof PlanningService
    */
   async updatePlannedWorkout(
     userId: string,
@@ -184,7 +208,12 @@ export class PlanningService {
   }
 
   /**
-   * Supprime un entraînement planifié
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} id => l'id de l'entrainement a supprimer
+   * @return {*} => supprime un entraînement planifié de la base de données
+   * @memberof PlanningService
    */
   async deletePlannedWorkout(userId: string, id: string) {
     const workout = await this.prisma.plannedWorkout.findFirst({
@@ -201,7 +230,13 @@ export class PlanningService {
   }
 
   /**
-   * Change le statut d'un entraînement
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} id => l'id de l'entrainement a modfier
+   * @param {('planned' | 'completed' | 'cancelled')} status => le nouveau statut de l'entrainement
+   * @return {*} => met à jour le statut d'un entraînement planifié dans la base de données
+   * @memberof PlanningService
    */
   async updateWorkoutStatus(
     userId: string,

@@ -24,6 +24,13 @@ export class R2Service {
   }
 
 
+  /**
+   *
+   *
+   * @param {string} key => clé du fichier a récupérer
+   * @return {*} => recupere un fichier depuis R2, retourne un buffer du contenu du fichier
+   * @memberof R2Service
+   */
   async getFile(key: string): Promise<Buffer> {
     try {
       const command = new GetObjectCommand({
@@ -41,8 +48,15 @@ export class R2Service {
     }
   }
 
+
   /**
-   * CRÉATION / MISE À JOUR d'un fichier dans R2
+   *
+   *
+   * @param {string} key => clé du fichier a récupérer
+   * @param {Buffer} fileBuffer => nouveau contenu du fichier
+   * @param {string} mimeType => type du nouveau/update du fichier
+   * @return {*}  => upsert un fichier dans R2
+   * @memberof R2Service
    */
   async uploadOrUpdateFile(key: string, fileBuffer: Buffer, mimeType: string): Promise<string> {
     try {
@@ -61,7 +75,6 @@ export class R2Service {
       this.logger.log(`Fichier uploadé/mis à jour avec succès : ${key}`);
       return key;
     } catch (error) {
-      // On extrait proprement le stack ou le message de l'erreur unknown
       const errorMessage = error instanceof Error ? error.stack : String(error);
       this.logger.error(`Échec de l'upload/update sur R2 pour la clé ${key}`, errorMessage);
       throw new InternalServerErrorException(`Impossible d'enregistrer le fichier sur le stockage distant.`);
@@ -69,7 +82,11 @@ export class R2Service {
   }
 
   /**
-   * SUPPRESSION d'un fichier dans R2
+   *
+   *
+   * @param {string} key => clé du fichier a supprimer
+   * @return {*}  => supprime le fichier de R2
+   * @memberof R2Service
    */
   async deleteFile(key: string): Promise<void> {
     try {
@@ -96,8 +113,13 @@ export class R2Service {
     }
   }
 
+
   /**
-   * UTILITAIRE : Vérifier si un fichier existe dans R2
+   *
+   *
+   * @param {string} key => clé du fichier a verifier si il existe
+   * @return {*}  => verifie l'existante du fichier dans R2
+   * @memberof R2Service
    */
   async fileExists(key: string): Promise<boolean> {
     try {
@@ -109,7 +131,6 @@ export class R2Service {
       );
       return true;
     } catch (error) {
-      // On caste temporairement en 'any' pour inspecter les propriétés spécifiques au SDK AWS S3
       const s3Error = error as any;
       
       if (s3Error?.name === 'NotFound' || s3Error?.$metadata?.httpStatusCode === 404) {

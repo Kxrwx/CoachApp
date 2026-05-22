@@ -1,3 +1,4 @@
+// src/auth/auth.service.ts
 import { Injectable, ConflictException, UnauthorizedException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -8,7 +9,16 @@ import { createHash, randomUUID, timingSafeEqual } from 'crypto';
 export class AuthService {
   constructor(private prisma: PrismaService, private jwtService: JwtService) {}
 
-  // --- SIGNUP / SIGNIN ---
+  /**
+   *
+   *
+   * @param {string} email => l'email de l'utilisateur
+   * @param {string} pass => le mot de passe de l'utilisateur
+   * @param {string} ip => l'adresse IP de l'utilisateur
+   * @param {string} userAgent => l'user agent du navigateur
+   * @return {*} => creer un utilisateur dans la db
+   * @memberof AuthService
+   */
   async signUp(email: string, pass: string, ip: string, userAgent: string) {
     const userExists = await this.prisma.user.findUnique({ where: { email } });
     if (userExists) throw new ConflictException('Email déjà utilisé');
@@ -49,6 +59,16 @@ export class AuthService {
     return this.generateTokens(user.id, user.email, ip, userAgent);
   }
 
+  /**
+   *
+   *
+   * @param {string} email => l'email de l'utilisateur
+   * @param {string} pass => le mot de passe de l'utilisateur
+   * @param {string} ip => l'adresse IP de l'utilisateur
+   * @param {string} userAgent => l'user agent du navigateur
+   * @return {*} => connecter l'utilisateur
+   * @memberof AuthService
+   */
   async signIn(email: string, pass: string, ip: string, userAgent: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(pass, user.passwordHash))) {
@@ -59,7 +79,13 @@ export class AuthService {
     return this.generateTokens(user.id, user.email, ip, userAgent);
   }
 
-  // --- REFRESH : APPROCHE OPAQUE & ROTATION ---
+  /**
+   *
+   *
+   * @param {string} opaqueToken => le token opaque pour rafraichir la session
+   * @return {*} => rafraichir les tokens de l'utilisateur
+   * @memberof AuthService
+   */
   async refreshTokens(opaqueToken: string) {
     const decoded = Buffer.from(opaqueToken, 'base64').toString();
     const [sid, secret] = decoded.split('.');
@@ -87,11 +113,25 @@ export class AuthService {
     return this.updateSessionAndTokens(session.id, session.user.id, session.user.email);
   }
 
+  /**
+   *
+   *
+   * @param {string} sessionId => l'id de la session a revoquer
+   * @return {*} => deconnecter l'utilisateur
+   * @memberof AuthService
+   */
   async logout(sessionId: string) {
     await this.prisma.session.update({ where: { id: sessionId }, data: { revoked: true } });
     return { message: 'Déconnecté' };
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => recuperer les infos de l'utilisateur
+   * @memberof AuthService
+   */
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
   where: { id: userId },
@@ -116,7 +156,15 @@ export class AuthService {
     return user;
   }
 
-async updateMe(userId: string, data: { password?: string; mfaEnabled?: boolean }) {
+/**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {object} data => les datas a mettre a jour
+   * @return {*} => mettre a jour les infos de l'utilisateur
+   * @memberof AuthService
+   */
+  async updateMe(userId: string, data: { password?: string; mfaEnabled?: boolean }) {
   return await this.prisma.user.update({
     where: { id: userId },
     data: {
@@ -129,8 +177,17 @@ async updateMe(userId: string, data: { password?: string; mfaEnabled?: boolean }
 
 
 
-  // --- HELPERS PRIVÉS ---
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {string} email => l'email de l'utilisateur
+   * @param {string} ip => l'adresse IP de l'utilisateur
+   * @param {string} userAgent => l'user agent du navigateur
+   * @return {*} => generer les tokens de la session
+   * @memberof AuthService
+   */
   private async generateTokens(userId: string, email: string, ip: string, userAgent: string) {
     const secret = randomUUID();
     const hash = createHash('sha256').update(secret).digest('hex');
@@ -148,6 +205,15 @@ async updateMe(userId: string, data: { password?: string; mfaEnabled?: boolean }
     return this.formatResponse(userId, email, session.id, secret);
   }
 
+  /**
+   *
+   *
+   * @param {string} sid => l'id de la session
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {string} email => l'email de l'utilisateur
+   * @return {*} => mettre a jour la session et les tokens
+   * @memberof AuthService
+   */
   private async updateSessionAndTokens(sid: string, userId: string, email: string) {
     const newSecret = randomUUID();
     const newHash = createHash('sha256').update(newSecret).digest('hex');
@@ -165,6 +231,16 @@ async updateMe(userId: string, data: { password?: string; mfaEnabled?: boolean }
     return this.formatResponse(userId, email, sid, newSecret);
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {string} email => l'email de l'utilisateur
+   * @param {string} sid => l'id de la session
+   * @param {string} secret => le secret de la session
+   * @return {*} => formater la reponse avec les tokens
+   * @memberof AuthService
+   */
   private async formatResponse(userId: string, email: string, sid: string, secret: string) {
     const access_token = await this.jwtService.signAsync(
       { sub: userId, email, sid, type: 'access' },

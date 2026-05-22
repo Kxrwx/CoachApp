@@ -1,3 +1,4 @@
+// src/goals/goals.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalInput, EvaluateTemplateInput } from './goals.controller';
@@ -6,8 +7,15 @@ import { CreateGoalInput, EvaluateTemplateInput } from './goals.controller';
 export class GoalsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {CreateGoalInput} data => datas de l'objectif a mettre dans la db 
+   * @return {*} => creer un objectif dans la db
+   * @memberof GoalsService
+   */
   async createGoal(userId: string, data: CreateGoalInput) {
-    // Mode 1: Objectif basé sur un Template
     if (data.templateId) {
       const templates = await this.getAvailableTemplates(userId);
       const template = templates.find((t) => t.id === data.templateId);
@@ -47,7 +55,6 @@ export class GoalsService {
       });
     }
 
-    // Mode 2: Objectif personnalisé (Custom) basé sur des métriques existantes
     if (data.targets && data.targets.length > 0) {
       return this.prisma.goal.create({
         data: {
@@ -68,7 +75,6 @@ export class GoalsService {
       });
     }
 
-    // Mode 3: Objectif 100% LIBRE (Hors template, décorrélé des métriques et des Personal Records)
     return this.prisma.goal.create({
       data: {
         userId,
@@ -78,10 +84,17 @@ export class GoalsService {
         endDate: new Date(data.endDate),
         isActive: data.isActive ?? true,
       },
-      include: { targets: { include: { metric: true } } }, // Retourne [] pour les targets
+      include: { targets: { include: { metric: true } } }, 
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => recupere tout les objectifs de l'utilisateur dans la db
+   * @memberof GoalsService
+   */
   async getUserGoals(userId: string) {
     const goals = await this.prisma.goal.findMany({
       where: { userId },
@@ -138,14 +151,21 @@ export class GoalsService {
     }));
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'ap
+   * @param {string} id => l'id de l'objectif a modifier
+   * @param {CreateGoalInput} data => les nouvelles datas de l'objectif a mettre dans la db
+   * @return {*} => met à jour un objectif dans la db
+   * @memberof GoalsService
+   */
   async updateGoal(userId: string, id: string, data: CreateGoalInput) {
     const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
 
-    // Nettoyage des cibles liées avant de restructurer
     await this.prisma.goalTarget.deleteMany({ where: { goalId: id } });
 
-    // Mode 1: Update vers un Template
     if (data.templateId) {
       const templates = await this.getAvailableTemplates(userId);
       const template = templates.find((t) => t.id === data.templateId);
@@ -178,7 +198,6 @@ export class GoalsService {
       });
     }
 
-    // Mode 2: Update vers du Custom (avec métriques)
     if (data.targets && data.targets.length > 0) {
       return this.prisma.goal.update({
         where: { id },
@@ -199,7 +218,6 @@ export class GoalsService {
       });
     }
 
-    // Mode 3: Update vers un objectif Libre
     return this.prisma.goal.update({
       where: { id },
       data: {
@@ -213,6 +231,15 @@ export class GoalsService {
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} id => l'id de l'objectif a modifier
+   * @param {boolean} isActive => le nouveau statut d'activation de l'objectif
+   * @return {*} => active ou désactive un objectif dans la db
+   * @memberof GoalsService
+   */
   async toggleGoalActive(userId: string, id: string, isActive: boolean) {
     const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
@@ -220,6 +247,14 @@ export class GoalsService {
     return this.prisma.goal.update({ where: { id }, data: { isActive } });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} id => l'id de l'objectif a supprimer
+   * @return {*} => supprime un objectif dans la db
+   * @memberof GoalsService
+   */ 
   async deleteGoal(userId: string, id: string) {
     const existingGoal = await this.prisma.goal.findFirst({ where: { id, userId } });
     if (!existingGoal) throw new NotFoundException('Objectif introuvable.');
@@ -227,6 +262,14 @@ export class GoalsService {
     return this.prisma.goal.delete({ where: { id } });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {EvaluateTemplateInput} config => la configuration pour l'évaluation du template (type de template, métrique ciblée, etc.)
+   * @return {*} => retourne une évaluation du template avec une valeur suggérée pour la cible et un contexte explicatif
+   * @memberof GoalsService
+   */
   async evaluateTemplate(userId: string, config: EvaluateTemplateInput) {
     let mergedConfig = { ...config } as any;
     
@@ -243,18 +286,15 @@ export class GoalsService {
     if (!metric) throw new NotFoundException('Métrique introuvable.');
 
     if (templateType === 'user_defined') {
-      // 1. On récupère le record personnel absolu (PR) pour cette métrique
       const pr = await this.prisma.personalRecord.findFirst({
         where: { userId, metricId: metric.id },
         orderBy: { value: 'desc' },
       });
       const recordValue = pr ? pr.value : 0;
 
-      // 2. On catégorise la métrique (Volume vs Record)
       const isVolumeMetric = ['ride_count', 'distance_km', 'elevation_gain', 'duration_hours', 'calories'].includes(metric.key);
 
       if (isVolumeMetric) {
-        // --- LOGIQUE VOLUME (Basée sur le mois précédent) ---
         const now = new Date();
         const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const previousMonth = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -264,8 +304,7 @@ export class GoalsService {
         });
 
         const lastMonthValue = prevComputed ? prevComputed.value : 0;
-        
-        // On suggère de faire 5% de plus que le mois dernier (ou 0 par défaut)
+
         const suggestedValue = lastMonthValue > 0 ? Math.round(lastMonthValue * 1.05) : 0;
 
         return {
@@ -274,8 +313,7 @@ export class GoalsService {
           context: `Mois dernier : ${lastMonthValue} ${metric.unit || ''}. Objectif suggéré (+5%) : ${suggestedValue} ${metric.unit || ''}.`,
         };
       } else {
-        // --- LOGIQUE RECORDS & PUISSANCE (Basée sur les Personal Records) ---
-        // On suggère de battre le record actuel de 2% (arrondi)
+
         const suggestedValue = recordValue > 0 ? Math.round(recordValue * 1.02) : 0;
         
         const contextMsg = recordValue > 0 
@@ -293,6 +331,13 @@ export class GoalsService {
     throw new Error('Type de template non pris en charge.');
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => recupere tout les templates de la db 'Metric'
+   * @memberof GoalsService
+   */
   async getAvailableTemplates(userId: string) {
     const targetKeys = [
       'ride_count', 'distance_km', 'elevation_gain', 'duration_hours',
@@ -322,18 +367,15 @@ export class GoalsService {
       }
     };
 
-    // 1. Piliers Volume & Endurance Globale (Cumulés sur le mois)
     addTemplate('ride_count', 't_ride_count', 'Volume : Nombre de sorties', 'Cumulez un nombre cible de sessions sur la période.');
     addTemplate('distance_km', 't_distance_km', 'Volume : Distance totale (km)', 'Fixez un cap de kilomètres global à franchir.');
     addTemplate('elevation_gain', 't_elevation_gain', 'Volume : Dénivelé total (m)', 'Cumulez du dénivelé positif à travers vos sorties.');
     addTemplate('duration_hours', 't_duration_hours', 'Volume : Temps d\'entraînement (h)', 'Planifiez votre volume horaire total sur le vélo.');
 
-    // 2. Records sur une Seule Sortie (Max)
     addTemplate('ride_max_distance_km', 't_ride_max_distance_km', 'Record : Sortie la plus longue (km)', 'Ciblez la distance maximale à réaliser en une seule et unique sortie.');
     addTemplate('ride_max_elevation_gain', 't_ride_max_elevation_gain', 'Record : Plus gros dénivelé sur une sortie (m)', 'Relevez le défi du plus grand dénivelé positif gravi en une seule fois.');
     addTemplate('ride_max_duration_hours', 't_ride_max_duration_hours', 'Record : Plus longue durée sur une sortie (h)', 'Fixez le nombre d\'heures maximales à tenir sur une seule session de selle.');
 
-    // 3. Profil de Puissance Record (PPR)
     addTemplate('power_3s', 't_power_3s', 'Puissance Maximale - Pmax (3s)', 'Ciblez votre pic de puissance pure pour les sprints courts.');
     addTemplate('power_30s', 't_power_30s', 'Puissance Sprint (30s)', 'Maintenez une puissance explosive sur un effort de type fin de bosse.');
     addTemplate('power_1min', 't_power_1min', 'Puissance Anaérobie (1min)', 'Travaillez votre résistance lactique maximale.');
@@ -345,7 +387,6 @@ export class GoalsService {
     addTemplate('power_2h', 't_power_2h', 'Puissance d\'Endurance Rythmée (2h)', 'Mesurez votre régularité et gestion de l\'allure sur sortie moyenne.');
     addTemplate('power_4h', 't_power_4h', 'Puissance d\'Endurance Longue (4h)', 'Suivez votre puissance moyenne sur les sorties d\'endurance fondamentale majeures.');
 
-    // 4. Cardio, Cadence & Calories
     addTemplate('hr_avg', 't_hr_avg', 'Physio : Fréquence Cardiaque Moyenne', 'Gérez l\'intensité cardiaque globale de vos entraînements.');
     addTemplate('cadence_avg', 't_cadence_avg', 'Technique : Cadence de pédalage moyenne', 'Travaillez votre vélocité ou votre force (RPM cible).');
     addTemplate('calories', 't_calories', 'Énergie : Dépense Énergétique (kcal)', 'Suivez la charge énergétique totale brûlée.');

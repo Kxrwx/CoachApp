@@ -1,3 +1,4 @@
+// src/activities/activities.service.ts
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
@@ -13,6 +14,13 @@ export class ActivitiesService {
     private r2Service: R2Service,
   ) {}
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @return {*} => recupere tout les activitées de l'utilisateur (startDate, idStrava, idUpload, etc.) et les retourne dans un tableau
+   * @memberof ActivitiesService
+   */
   async findAll(userId: string) {
     return this.prisma.activity.findMany({
       where: { userId },
@@ -34,6 +42,14 @@ export class ActivitiesService {
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur de l'app
+   * @param {string} id => l'id de l'activité a recupere
+   * @return {*} => retourne tout les données de l'activité de maniere detaille
+   * @memberof ActivitiesService
+   */
   async findOne(userId: string, id: string) {
     const activity = await this.prisma.activity.findFirst({
       where: { id, userId },
@@ -51,7 +67,6 @@ export class ActivitiesService {
     let decodedFileData: any = null;
     let stravaPolylineContent: string | null = null;
 
-    // FIT FILE
     const uploadFile = activity.storage.find(
       (s) => s.source === 'UPLOAD',
     );
@@ -66,7 +81,6 @@ export class ActivitiesService {
       }
     }
 
-    // STRAVA POLYLINE
     const polylineFile = activity.storage.find(
       (s) => s.source === 'STRAVA',
     );
@@ -109,6 +123,14 @@ export class ActivitiesService {
     };
   }
 
+  /**
+   *
+   *
+   * @private
+   * @param {Buffer} buffer => fichier a traiter
+   * @return {*} => traite un fichier fit et retourne les données décodées (laps, records, stats, etc.)
+   * @memberof ActivitiesService
+   */
   private async parseFitBuffer(
   buffer: Buffer,
 ): Promise<any> {
@@ -140,7 +162,6 @@ export class ActivitiesService {
         const laps =
           data.laps || [];
 
-        // FALLBACKS SI SESSION VIDE
 
         const totalDistance =
           session.total_distance ??
@@ -257,6 +278,12 @@ export class ActivitiesService {
 }
 }
 
+/**
+ *
+ *
+ * @param {number[]} arr => tableau de nombre a traiter
+ * @return {*} => retourne la moyenne des nombres du tableau ou null si le tableau est vide
+ */
 function average(arr: number[]) {
   if (!arr.length) return null;
 
@@ -266,6 +293,12 @@ function average(arr: number[]) {
   );
 }
 
+/**
+ *
+ *
+ * @param {number[]} arr => tableau de nombre a traiter
+ * @return {*} => retourne la valeur maximale du tableau ou null si le tableau est vide
+ */
 function max(arr: number[]) {
   if (!arr.length) return null;
 

@@ -1,3 +1,4 @@
+// src/goals/goals.controller.ts
 import {
   Controller,
   Get,
@@ -23,9 +24,7 @@ export interface CreateGoalInput {
   startDate: string;
   endDate: string;
   isActive?: boolean;
-  // Mode 1: Template-based (métrique fixée par le template)
   templateId?: string;
-  // Mode 2: Free ou surcharge de valeur cible de template
   targets?: GoalTargetInput[];
 }
 

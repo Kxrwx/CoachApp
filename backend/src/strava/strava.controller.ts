@@ -1,4 +1,5 @@
-import { Controller, Get, Query, Req, UseGuards, Res, Delete } from '@nestjs/common';
+// src/strava/strava.controller.ts
+import { Controller, Get, Query, Req, UseGuards, Delete } from '@nestjs/common';
 import { StravaService } from './strava.service';
 import { AuthGuard } from '../auth/auth.guard';
 

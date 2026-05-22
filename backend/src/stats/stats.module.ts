@@ -1,4 +1,5 @@
-import { Logger, Module } from '@nestjs/common';
+// src/stats/stats.module.ts
+import { Module } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { PrismaModule } from '../prisma/prisma.module'; 
 
