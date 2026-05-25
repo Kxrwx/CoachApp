@@ -1,17 +1,16 @@
 // src/strava/strava.service.ts
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import axios from 'axios';
 import { startOfMonth, startOfYear, subMonths, subYears, subDays } from 'date-fns';
 import { R2Service } from '../r2/r2.service';
 import { Prisma, StorageSource } from '@prisma/client';
-import { StatsService } from '../stats/stats.service'; 
+import { StatsService } from '../stats/stats.service';
+import { HttpService } from '../common/services/http.service';
+import { StravaLinkSchema } from '../common/schemas/validation.schemas';
 
 type UsersStravaWithIntegration = Prisma.UsersStravaGetPayload<{
   include: { integration: true };
 }>;
-
-
 
 interface PendingStat {
   type: string;
@@ -23,10 +22,15 @@ interface PendingStat {
   };
 }
 
-
 @Injectable()
 export class StravaService {
-  constructor(private prisma: PrismaService, private r2Service: R2Service, private logger: Logger, private statsService: StatsService) {}
+  constructor(
+    private prisma: PrismaService,
+    private r2Service: R2Service,
+    private logger: Logger,
+    private statsService: StatsService,
+    private httpService: HttpService
+  ) {}
 
   getAuthUrl() {
     const rootUrl = 'https://www.strava.com/oauth/authorize';
@@ -35,7 +39,7 @@ export class StravaService {
     }
     const options = {
       client_id: process.env.STRAVA_CLIENT_ID,
-      redirect_uri: process.env.STRAVA_REDIRECT_URI, 
+      redirect_uri: process.env.STRAVA_REDIRECT_URI,
       response_type: 'code',
       approval_prompt: 'auto',
       scope: 'read,activity:read_all,profile:read_all',
@@ -61,19 +65,24 @@ export class StravaService {
       const startTimestamp = Math.floor((startDate.getTime() - 3600000) / 1000); // -1h
       const endTimestamp = Math.floor((startDate.getTime() + 3600000) / 1000); // +1h
 
-      const { data } = await axios.get(
+      // Timeout long pour Strava (30 secondes)
+      const response = await this.httpService.getWithTimeout(
         `https://www.strava.com/api/v3/athlete/activities`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          params: {
-            per_page: 100,
-            after: startTimestamp,
-            before: endTimestamp,
-          },
-        }
+        30000
       );
 
-      return data.length > 0 ? data[0] : null;
+      const data = response.data;
+      if (Array.isArray(data) && data.length > 0) {
+        // Filter by timestamp range
+        const filtered = data.filter((activity: any) => {
+          const activityTime = new Date(activity.start_date).getTime();
+          return activityTime >= startDate.getTime() - 3600000 && 
+                 activityTime <= startDate.getTime() + 3600000;
+        });
+        return filtered.length > 0 ? filtered[0] : null;
+      }
+
+      return null;
     } catch (error) {
       this.logger.error(`Erreur lors de la recherche d'activité Strava par date`, error);
       return null;
@@ -120,12 +129,16 @@ export class StravaService {
    */
   async linkAccount(userId: string, code: string) {
     try {
-      const response = await axios.post('https://www.strava.com/oauth/token', {
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
-        code,
-        grant_type: 'authorization_code',
-      });
+      const response = await this.httpService.postWithTimeout(
+        'https://www.strava.com/oauth/token',
+        {
+          client_id: process.env.STRAVA_CLIENT_ID,
+          client_secret: process.env.STRAVA_CLIENT_SECRET,
+          code,
+          grant_type: 'authorization_code',
+        },
+        30000 // 30 secondes pour obtenir les tokens
+      );
 
       const { access_token, refresh_token, expires_at, athlete } = response.data;
 
@@ -309,13 +322,14 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
       const afterTimestamp = Math.floor(fiveYearsAgo.getTime() / 1000);
 
       while (true) {
-        const { data } = await axios.get(
-          `https://www.strava.com/api/v3/athlete/activities`,
+        const response = await this.httpService.getWithTimeout(
+          `https://www.strava.com/api/v3/athlete/activities?per_page=200&page=${page}&after=${afterTimestamp}`,
+          30000, // 30 secondes pour chaque page
           {
             headers: { Authorization: `Bearer ${accessToken}` },
-            params: { per_page: 200, page, after: afterTimestamp },
           }
         );
+        const data = response.data;
         if (!data.length) break;
         allActivities.push(...data);
         if (data.length < 200) break;
@@ -324,12 +338,14 @@ private async syncStatsStrava(stravaAthleteId: string | number) {
 
       if (allActivities.length === 0) return;
 
-    const { data: stravaApiData } = await axios.get(
+    const response = await this.httpService.getWithTimeout(
       `https://www.strava.com/api/v3/athletes/${externalUserId}/stats`,
+      30000, // 30 secondes pour obtenir les stats
       {
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
+    const stravaApiData = response.data;
 
     const statsMap = new Map<
       string,
