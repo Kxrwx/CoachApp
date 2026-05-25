@@ -222,7 +222,13 @@ export class UploadService {
       await this.r2Service.uploadOrUpdateFile(r2Key, file.buffer, mimeType);
 
       const result = await this.prisma.$transaction(async (tx) => {
-        const uploadDetail = await tx.uploadActivity.create({ data: { dataId } });
+        const uploadDetail = await tx.uploadActivity.create({
+          data: {
+            dataId,
+            distance: fileDistance,
+            elevation: fileElevation,
+          },
+        });
 
         let activity = await tx.activity.findFirst({
           where: {
@@ -368,6 +374,10 @@ export class UploadService {
         throw new NotFoundException("Activité ou fichier d'upload introuvable.");
       }
 
+      // Récupérer les stats avant suppression pour les enlever
+      const uploadDistance = activity.uploadDetail.distance || 0;
+      const uploadElevation = activity.uploadDetail.elevation || 0;
+
       for (const file of activity.storage) {
         await this.r2Service.deleteFile(file.r2Key);
         this.logger.log(`[Delete] Fichier R2 supprimé : ${file.r2Key}`);
@@ -378,6 +388,9 @@ export class UploadService {
         await tx.activity.update({ where: { id: activityId }, data: { idUpload: null } });
         await tx.uploadActivity.delete({ where: { id: activity.idUpload! } });
       });
+
+      // Enlever les stats de l'upload
+      await this.statsService.removeUploadStats(userId, uploadDistance, uploadElevation, activity.startDate);
 
       await this.cleanIncompleteActivities(userId);
       return { success: true };

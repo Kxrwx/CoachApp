@@ -11,6 +11,112 @@ export class StatsService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Reset la table stats de l'utilisateur et la recalcule uniquement avec les uploads
+   * @param userId - l'id de l'utilisateur
+   */
+  async recomputeStatsFromUploadsOnly(userId: string) {
+    try {
+      this.logger.log(`[Stats] Recalcul des stats à partir des uploads uniquement pour ${userId}`);
+
+      // Supprimer toutes les stats existantes
+      await this.prisma.stats.deleteMany({ where: { userId } });
+
+      // Récupérer toutes les activités uploadées
+      const uploadActivities = await this.prisma.activity.findMany({
+        where: {
+          userId,
+          idUpload: { not: null },
+        },
+        include: {
+          uploadDetail: true,
+        },
+      });
+
+      if (uploadActivities.length === 0) {
+        this.logger.log(`[Stats] Aucune activité uploadée trouvée pour ${userId}`);
+        return;
+      }
+
+      const aggregatedStats = new Map<
+        string,
+        { distance: number; elevation: number; count: number; periodStart: Date | null }
+      >();
+
+      const ensurePeriod = (key: string, date: Date | null) => {
+        if (!aggregatedStats.has(key)) {
+          aggregatedStats.set(key, { distance: 0, elevation: 0, count: 0, periodStart: date });
+        }
+        return aggregatedStats.get(key)!;
+      };
+
+      let totalDistance = 0;
+      let totalElevation = 0;
+
+      for (const act of uploadActivities) {
+        const distance = act.uploadDetail?.distance || 0;
+        const elevation = act.uploadDetail?.elevation || 0;
+
+        const date = new Date(act.startDate);
+        const yearKey = `year_${date.getFullYear()}`;
+        const monthKey = `month_${date.getFullYear()}_${date.getMonth() + 1}`;
+
+        const yearTarget = ensurePeriod(yearKey, startOfYear(date));
+        yearTarget.distance += distance;
+        yearTarget.elevation += elevation;
+        yearTarget.count += 1;
+
+        const monthTarget = ensurePeriod(monthKey, startOfMonth(date));
+        monthTarget.distance += distance;
+        monthTarget.elevation += elevation;
+        monthTarget.count += 1;
+
+        totalDistance += distance;
+        totalElevation += elevation;
+      }
+
+      const allTarget = ensurePeriod('ride_all', null);
+      allTarget.distance = totalDistance;
+      allTarget.elevation = totalElevation;
+      allTarget.count = uploadActivities.length;
+
+      const upserts: Prisma.PrismaPromise<any>[] = [];
+
+      for (const [periodType, data] of aggregatedStats.entries()) {
+        upserts.push(
+          this.prisma.stats.upsert({
+            where: {
+              userId_periodType: { userId, periodType },
+            },
+            update: {
+              distance: data.distance,
+              elevation: data.elevation,
+              count: data.count,
+              periodStart: data.periodStart,
+              updatedAt: new Date(),
+            },
+            create: {
+              userId,
+              periodType,
+              distance: data.distance,
+              elevation: data.elevation,
+              count: data.count,
+              periodStart: data.periodStart,
+            },
+          })
+        );
+      }
+
+      if (upserts.length > 0) {
+        await this.prisma.$transaction(upserts);
+      }
+
+      this.logger.log(`[Stats] Recalcul from uploads done. ${upserts.length} periods updated.`);
+    } catch (error) {
+      this.logger.error(`[Stats] Error recomputing from uploads for ${userId}`, error);
+    }
+  }
+
+  /**
    *
    *
    * @param {string} userId => l'id de l'utilisateur de l'app
@@ -73,8 +179,8 @@ export class StatsService {
       let totalManualCount = 0;
 
       for (const act of manualActivities) {
-        const distance = 0; 
-        const elevation = 0;
+        const distance = act.uploadDetail?.distance || 0;
+        const elevation = act.uploadDetail?.elevation || 0;
 
         const date = new Date(act.startDate);
         const yearKey = `year_${date.getFullYear()}`;

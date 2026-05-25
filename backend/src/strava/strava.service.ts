@@ -186,6 +186,8 @@ async unlinkAccount(userId: string) {
 
     this.cleanIncompleteActivities(userId);
 
+    await this.statsService.recomputeStatsFromUploadsOnly(userId);
+
     this.logger.log(`[Déliaison] Compte Strava délié avec succès pour l'utilisateur ${userId}`);
     return { success: true };
   } catch (error) {

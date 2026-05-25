@@ -150,9 +150,11 @@ model StravaActivity {
 }
 
 model UploadActivity {
-  id       String            @id @default(uuid())
-  dataId   String
-  activity Activity?
+  id        String    @id @default(uuid())
+  dataId    String
+  distance  Float     @default(0)
+  elevation Float     @default(0)
+  activity  Activity?
 }
 
 enum StorageSource {
