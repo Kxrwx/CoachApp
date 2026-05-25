@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
 import { StatsService } from '../stats/stats.service';
+import { StravaService } from '../strava/strava.service';
 import { StorageSource, Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -31,6 +32,7 @@ export class UploadService {
     private prisma: PrismaService,
     private r2Service: R2Service,
     private statsService: StatsService,
+    private stravaService: StravaService,
   ) {}
 
 
@@ -265,7 +267,21 @@ export class UploadService {
       });
 
       await this.updatePersonalRecords(userId, parsedData.metrics, parsedData.startDate);
-      await this.statsService.addUploadStats(userId, fileDistance, fileElevation, parsedData.startDate);
+      
+      // ✅ Vérifier si l'activité vient aussi de Strava
+      // Si oui, ne pas ajouter les stats (elles sont déjà comptabilisées via StravaStats)
+      const finalActivity = await this.prisma.activity.findUnique({
+        where: { id: result.activityId },
+      });
+
+      if (!finalActivity?.idStrava) {
+        // L'activité n'a pas de source Strava, on ajoute les stats uniquement pour l'upload
+        await this.statsService.addUploadStats(userId, fileDistance, fileElevation, parsedData.startDate);
+      } else {
+        this.logger.log(
+          `[Upload] Activité ${result.activityId} liée à Strava détectée. Stats Strava existantes conservées.`
+        );
+      }
 
       return result;
     } catch (error) {
@@ -374,9 +390,30 @@ export class UploadService {
         throw new NotFoundException("Activité ou fichier d'upload introuvable.");
       }
 
-      // Récupérer les stats avant suppression pour les enlever
       const uploadDistance = activity.uploadDetail.distance || 0;
       const uploadElevation = activity.uploadDetail.elevation || 0;
+
+      // ✅ Vérifier si l'activité a plus de 30 jours
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const isOldActivity = new Date(activity.startDate) < thirtyDaysAgo;
+
+      // ✅ Si l'activité est vieille (>30j) et liée à Strava, vérifier que l'activité existe sur Strava
+      if (isOldActivity && activity.idStrava) {
+        this.logger.log(
+          `[Delete] Activité ancienne détectée (${activity.startDate}). Vérification auprès de Strava...`
+        );
+        const existsOnStrava = await this.stravaService.doesStravaActivityExist(userId, activity.startDate);
+        if (existsOnStrava) {
+          this.logger.log(
+            `[Delete] Activité ${activityId} confirmée sur Strava. L'upload sera supprimé mais l'activité Strava persiste.`
+          );
+        } else {
+          this.logger.warn(
+            `[Delete] Activité ${activityId} NOT trouvée sur Strava (vieille >30j). Elle a peut-être été supprimée sur Strava.`
+          );
+        }
+      }
 
       for (const file of activity.storage) {
         await this.r2Service.deleteFile(file.r2Key);
@@ -389,8 +426,14 @@ export class UploadService {
         await tx.uploadActivity.delete({ where: { id: activity.idUpload! } });
       });
 
-      // Enlever les stats de l'upload
-      await this.statsService.removeUploadStats(userId, uploadDistance, uploadElevation, activity.startDate);
+      // ✅ Enlever les stats de l'upload UNIQUEMENT si l'activité n'a pas de source Strava
+      if (!activity.idStrava) {
+        await this.statsService.removeUploadStats(userId, uploadDistance, uploadElevation, activity.startDate);
+      } else {
+        this.logger.log(
+          `[Delete] Activité ${activityId} liée à Strava. Stats Strava conservées.`
+        );
+      }
 
       await this.cleanIncompleteActivities(userId);
       return { success: true };

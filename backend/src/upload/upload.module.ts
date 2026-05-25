@@ -6,6 +6,7 @@ import { R2Module } from '../r2/r2.module';
 import { PrismaModule } from '../prisma/prisma.module'; 
 import FitParser from 'fit-file-parser';
 import { StatsModule } from '@/stats/stats.module';
+import { StravaModule } from '../strava/strava.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { StatsModule } from '@/stats/stats.module';
     R2Module, 
     FitParser,
     StatsModule,
+    StravaModule,
   ],
   controllers: [UploadController],
   providers: [UploadService],

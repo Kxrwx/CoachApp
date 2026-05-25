@@ -45,6 +45,70 @@ export class StravaService {
     return `${rootUrl}?${qs.toString()}`;
   }
 
+  /**
+   * Cherche une activité Strava dans une plage horaire donnée (+/- 1h)
+   * @private
+   * @param accessToken - token d'accès Strava
+   * @param startDate - date de début de l'activité recherchée
+   * @return activité Strava trouvée ou null
+   */
+  private async findStravaActivityByDateRange(
+    accessToken: string,
+    startDate: Date,
+  ): Promise<any | null> {
+    try {
+      // Chercher dans une plage +/- 1h autour de la date
+      const startTimestamp = Math.floor((startDate.getTime() - 3600000) / 1000); // -1h
+      const endTimestamp = Math.floor((startDate.getTime() + 3600000) / 1000); // +1h
+
+      const { data } = await axios.get(
+        `https://www.strava.com/api/v3/athlete/activities`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          params: {
+            per_page: 100,
+            after: startTimestamp,
+            before: endTimestamp,
+          },
+        }
+      );
+
+      return data.length > 0 ? data[0] : null;
+    } catch (error) {
+      this.logger.error(`Erreur lors de la recherche d'activité Strava par date`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Vérifie si une activité existe sur Strava pour un utilisateur à une date donnée
+   * Utile pour valider avant suppression d'anciennes activités
+   * @param userId - id de l'utilisateur app
+   * @param startDate - date de l'activité
+   * @return true si une activité existe sur Strava, false sinon
+   */
+  async doesStravaActivityExist(userId: string, startDate: Date): Promise<boolean> {
+    try {
+      const integration = await this.prisma.integration.findUnique({
+        where: { userId_provider: { userId, provider: 'STRAVA' } },
+      });
+
+      if (!integration?.accessToken) {
+        return false;
+      }
+
+      const stravaActivity = await this.findStravaActivityByDateRange(
+        integration.accessToken,
+        startDate
+      );
+
+      return !!stravaActivity;
+    } catch (error) {
+      this.logger.error(`Erreur lors de la vérification d'activité Strava`, error);
+      return false;
+    }
+  }
+
   //TODO : retravail le link a strava en recalculent proprement Stats
   /**
    *

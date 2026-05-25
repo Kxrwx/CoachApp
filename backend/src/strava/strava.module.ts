@@ -9,6 +9,7 @@ import { StatsModule } from '@/stats/stats.module';
 @Module({
   imports: [StatsModule],
   providers: [StravaService, PrismaService, R2Service, Logger],
-  controllers: [StravaController]
+  controllers: [StravaController],
+  exports: [StravaService],
 })
 export class StravaModule {}
