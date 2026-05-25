@@ -3,7 +3,7 @@ let accessToken: string | null = typeof window !== 'undefined'
   : null;
 
 let refreshPromise: Promise<boolean> | null = null;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
 
 export function setAccessToken(token: string | null) {
   accessToken = token;

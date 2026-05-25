@@ -1,5 +1,6 @@
 "use client";
-
+//TODO : pousser l'affichage 
+//TODO : ajouter les stats strava 
 import React, { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";

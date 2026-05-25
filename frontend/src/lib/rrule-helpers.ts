@@ -1,26 +1,17 @@
-/**
- * Génère une règle RRULE pour les entraînements répétitifs
- * Exemples: "FREQ=WEEKLY;BYDAY=MO,WE,FR" pour lundi, mercredi, vendredi
- */
 
 export const generateRRulePresets = {
-  // Chaque jour de la semaine
   "FREQ=DAILY": "Tous les jours",
 
-  // Hebdomadaire
   "FREQ=WEEKLY;BYDAY=MO,WE,FR": "Lundi, Mercredi, Vendredi",
   "FREQ=WEEKLY;BYDAY=TU,TH": "Mardi, Jeudi",
   "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR": "Lundi à Vendredi",
   "FREQ=WEEKLY;BYDAY=SA,SU": "Samedi, Dimanche",
   "FREQ=WEEKLY": "Une fois par semaine",
 
-  // Tous les 2 jours
   "FREQ=DAILY;INTERVAL=2": "Tous les 2 jours",
 
-  // Bi-hebdomadaire
   "FREQ=WEEKLY;INTERVAL=2": "Toutes les 2 semaines",
 
-  // Mensuel
   "FREQ=MONTHLY": "Une fois par mois",
 };
 

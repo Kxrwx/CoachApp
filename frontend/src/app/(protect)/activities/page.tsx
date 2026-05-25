@@ -1,3 +1,5 @@
+//TODO : fix la distance des activitées
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -37,7 +39,7 @@ export default function ActivitiesPage() {
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Activités</h2>
           <p className="text-slate-500 text-sm mt-1">Historique de vos performances multi-sources.</p>
         </div>
-        <Link href="/activities/upload" className="flex items-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+        <Link href="/upload" className="flex items-center gap-2 bg-slate-900 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
           <Plus size={16} /> Importer
         </Link>
       </div>
