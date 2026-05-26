@@ -1,5 +1,5 @@
 // src/app.module.ts
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module'; 
@@ -19,10 +19,10 @@ import { ConfigModule } from './config/config.module';
 import { HealthModule } from './health/health.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 
 @Module({
   imports: [
-    // Config & Logging
     ConfigModule,
     LoggerModule.forRoot({
       pinoHttp: {
@@ -40,7 +40,6 @@ import { LoggerModule } from 'nestjs-pino';
       },
     }),
 
-    // Health & Rate Limiting
     HealthModule,
     ThrottlerModule.forRoot([
       {
@@ -64,4 +63,8 @@ import { LoggerModule } from 'nestjs-pino';
   controllers: [AppController, StatsController],
   providers: [AppService, SessionCleanupService, ActivitiesService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

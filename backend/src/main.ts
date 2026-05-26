@@ -71,8 +71,6 @@ async function bootstrap() {
   // ============ PROXY & SECURITY ============
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
-  // ============ CORRELATION IDs (Middleware) ============
-  app.use(new CorrelationIdMiddleware());
 
   // ============ CORS - Whitelist propre ============
   const allowedOrigins = [
