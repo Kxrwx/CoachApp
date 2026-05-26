@@ -16,7 +16,6 @@ README.md
 .env.*.local
 coverage
 test
-src
 docker-compose*.yml
 Dockerfile
 .dockerignore
