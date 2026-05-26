@@ -1,4 +1,3 @@
-# Multi-stage build pour NestJS
 # Stage 1: Builder
 FROM node:22-alpine AS builder
 
@@ -7,13 +6,16 @@ WORKDIR /app
 # Copier les manifests
 COPY package*.json ./
 
-# Installer les dépendances
+# Installer toutes les dépendances (y compris dev)
 RUN npm ci
 
-# Copier le code source
+# Copier le code source ET le dossier prisma
 COPY . .
 
-# Compiler TypeScript
+# ⚠️ CRUCIAL : Générer le client Prisma avant de compiler
+RUN npx prisma generate
+
+# Compiler TypeScript (crée le dossier /dist)
 RUN npm run build
 
 # Stage 2: Runtime
@@ -21,7 +23,7 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Installer dumb-init pour gérer les signaux proprement
+# Installer dumb-init
 RUN apk add --no-cache dumb-init
 
 # Créer un utilisateur non-root
@@ -33,6 +35,10 @@ COPY package*.json ./
 
 # Installer uniquement les dépendances de production
 RUN npm ci --omit=dev && npm cache clean --force
+
+# ⚠️ CRUCIAL : Copier le schéma Prisma et regénérer le client pour la prod
+COPY --from=builder /app/prisma ./prisma
+RUN npx prisma generate
 
 # Copier le code compilé depuis le builder
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
