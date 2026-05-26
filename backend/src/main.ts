@@ -73,11 +73,12 @@ async function bootstrap() {
 
 
   // ============ CORS - Whitelist propre ============
-  const allowedOrigins = [
-    configService.frontendUrl,
-    'http://localhost:3001',
-    'http://localhost:3000',
-  ].filter(Boolean);
+ const cleanFrontendUrl = configService.frontendUrl?.replace(/\/$/, '');
+
+const allowedOrigins = [
+  cleanFrontendUrl,
+  'http://localhost:3001',
+].filter(Boolean);
 
   if (configService.isProduction) {
     // Production: uniquement les domaines explicites
