@@ -24,6 +24,9 @@ model User {
   personalRecords PersonalRecord[]
   plannedWorkouts PlannedWorkout[]
   sessions        Session[]
+
+  physiology      UserPhysiology?
+  performanceStats PerformanceStats[]
 }
 
 model Session {
@@ -283,4 +286,60 @@ model Stats {
 
   @@unique([userId, periodType]) // Une seule ligne par période pour les stats globales
   @@index([userId, periodType])
+}
+
+//Physio 
+
+model UserPhysiology {
+  id String @id @default(uuid())
+
+  userId String @unique
+
+  restingHr Int?
+  maxHr Int?
+
+  ftp Float?
+
+  weight Float?
+  height Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PerformanceStats {
+  id String @id @default(uuid())
+
+  userId String
+
+  periodType String
+  periodStart DateTime
+
+  w3s Float?
+  w30s Float?
+  w1min Float?
+  w2min Float?
+  w5min Float?
+  w10min Float?
+  w20min Float?
+  w1h Float?
+
+  ftp Float?
+
+  hrMax Int?
+  hrRest Int?
+
+  weight Float?
+
+  avgOutdoorTemperature Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodType, periodStart])
+  @@index([userId, periodType, periodStart])
 }
