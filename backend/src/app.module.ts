@@ -20,6 +20,7 @@ import { HealthModule } from './health/health.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { UserPhysiologyModule } from './physio/physio.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     PlanningModule,
     GoalsModule,
     StatsModule,
+    UserPhysiologyModule,
   ],
   controllers: [AppController, StatsController],
   providers: [AppService, SessionCleanupService, ActivitiesService],

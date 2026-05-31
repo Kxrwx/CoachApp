@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ShieldCheck, Calendar, Save, Loader2, Mail, CheckCircle2, KeyRound } from "lucide-react";
+import { ShieldCheck, Calendar, Save, Loader2, Mail, CheckCircle2, KeyRound, Activity, RotateCcw, Sparkles } from "lucide-react";
 import { faStrava } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useAuth } from "@/app/context/AuthContext";
@@ -12,21 +12,72 @@ export default function SettingsPage() {
   const { user, userStrava, loading, syncUser, logout } = useAuth();
 
   const [mfaEnabled, setMfaEnabled] = useState(false);
-  
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // États pour la physiologie
+  const [physioData, setPhysioData] = useState({
+    restingHr: "",
+    maxHr: "",
+    ftp: "",
+    weight: "",
+    height: ""
+  });
+  const [initialPhysio, setInitialPhysio] = useState<any>(null);
+
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPhysio, setIsSavingPhysio] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Détection des changements distincts
   const hasMfaChanged = user?.mfaEnabled !== mfaEnabled;
   const hasPasswordInput = newPassword.length > 0;
-  const hasChanged = hasMfaChanged || hasPasswordInput;
+  const hasSecurityChanged = hasMfaChanged || hasPasswordInput;
+  
+  // Changement spécifique à la physiologie
+  const hasPhysioChanged = initialPhysio && JSON.stringify(physioData) !== JSON.stringify(initialPhysio);
 
   useEffect(() => {
+    const fetchPhysio = async () => {
+      try {
+        const res = await api('/physiology', { method: 'GET' });
+        
+        if (res.ok) {
+          // 1. On lit d'abord en texte brut pour éviter le crash du .json()
+          const text = await res.text();
+          
+          // 2. On parse seulement si le texte n'est pas vide (sinon on prend un objet vide)
+          const data = text ? JSON.parse(text) : {};
+
+          const formattedData = {
+            restingHr: data?.restingHr?.toString() || "",
+            maxHr: data?.maxHr?.toString() || "",
+            ftp: data?.ftp?.toString() || "",
+            weight: data?.weight?.toString() || "",
+            height: data?.height?.toString() || ""
+          };
+          
+          setPhysioData(formattedData);
+          setInitialPhysio(formattedData);
+        } else {
+          setInitialPhysio({
+            restingHr: "", maxHr: "", ftp: "", weight: "", height: ""
+          });
+        }
+      } catch (err) {
+        console.error("Erreur de récupération de la physiologie", err);
+        setInitialPhysio({
+            restingHr: "", maxHr: "", ftp: "", weight: "", height: ""
+        });
+      }
+    };
+
     if (user) {
       setMfaEnabled(user.mfaEnabled || false);
+      fetchPhysio();
     }
   }, [user]);
 
@@ -36,8 +87,77 @@ export default function SettingsPage() {
     </div>
   );
 
-  const handleSave = async () => {
-    if (!hasChanged) return;
+  // Bouton 1 : Revenir sur les anciennes data (Resync/Annuler)
+  const handleResyncPhysio = () => {
+    if (initialPhysio) {
+      setPhysioData({ ...initialPhysio });
+    }
+  };
+
+  // Bouton 2 : Calculer automatiquement les datas à partir des activités en BDD
+  const handleCalculatePhysio = async () => {
+    setIsCalculating(true);
+    setError(null);
+    try {
+      const res = await api('/physiology/calculate', { method: 'POST' });
+      if (!res.ok) throw new Error();
+      
+      const data = await res.json();
+      
+      setPhysioData({
+        ...physioData,
+        restingHr: data?.restingHr?.toString() || physioData.restingHr,
+        maxHr: data?.maxHr?.toString() || physioData.maxHr,
+        ftp: data?.ftp?.toString() || physioData.ftp,
+      });
+
+      setSuccessMessage("Métriques estimées. N'oubliez pas d'enregistrer !");
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 4000);
+    } catch (err) {
+      setError("Impossible de calculer les métriques depuis l'historique.");
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // Bouton 3 : Enregistrer les métriques physiologiques actuelles
+  const handleSavePhysio = async () => {
+    if (!hasPhysioChanged) return;
+
+    setIsSavingPhysio(true);
+    setError(null);
+
+    try {
+      const physioPayload = {
+        restingHr: physioData.restingHr ? parseInt(physioData.restingHr, 10) : null,
+        maxHr: physioData.maxHr ? parseInt(physioData.maxHr, 10) : null,
+        ftp: physioData.ftp ? parseFloat(physioData.ftp) : null,
+        weight: physioData.weight ? parseFloat(physioData.weight) : null,
+        height: physioData.height ? parseFloat(physioData.height) : null,
+      };
+
+      const physioRes = await api('/physiology', {
+        method: 'POST',
+        body: JSON.stringify(physioPayload),
+      });
+
+      if (!physioRes.ok) throw new Error();
+      
+      setInitialPhysio(physioData); 
+      setSuccessMessage("Vos métriques physiologiques ont été enregistrées.");
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      setError("Impossible de sauvegarder les métriques.");
+    } finally {
+      setIsSavingPhysio(false);
+    }
+  };
+
+  // Sauvegarde générale Sécurité
+  const handleSaveSecurity = async () => {
+    if (!hasSecurityChanged) return;
     
     if (hasPasswordInput && newPassword !== confirmPassword) {
       setError("Les mots de passe ne correspondent pas.");
@@ -62,30 +182,26 @@ export default function SettingsPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Erreur lors de la mise à jour");
+      if (!res.ok) throw new Error();
 
       const data = await res.json();
-
       if (data.requiresLogin) {
         logout();
         return;
       }
 
+      setSuccessMessage("Vos paramètres de sécurité ont été mis à jour.");
       setShowSuccess(true);
-      
       setNewPassword("");
       setConfirmPassword("");
-      
       await syncUser();
-      
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      setError("Impossible de sauvegarder les paramètres.");
+      setError("Impossible de sauvegarder les paramètres de sécurité.");
     } finally {
       setIsSaving(false);
     }
   };
-
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
@@ -100,17 +216,17 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Bouton de sauvegarde global flottant si des changements sont détectés */}
-      {hasChanged && !error && (
+      {/* Flottant uniquement pour SÉCURITÉ */}
+      {hasSecurityChanged && !error && (
          <div className="sticky top-4 z-50 mb-6 flex items-center justify-between gap-3 bg-indigo-50 p-4 rounded-xl border border-indigo-200 shadow-sm animate-in fade-in slide-in-from-top-2">
-            <span className="text-sm font-bold text-indigo-800 tracking-tight">Vous avez des modifications non enregistrées.</span>
+            <span className="text-sm font-bold text-indigo-800 tracking-tight">Modifications de sécurité non enregistrées.</span>
             <button
-              onClick={handleSave}
+              onClick={handleSaveSecurity}
               disabled={isSaving}
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-100"
             >
               {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-              Enregistrer
+              Enregistrer la sécurité
             </button>
          </div>
       )}
@@ -118,7 +234,7 @@ export default function SettingsPage() {
       {showSuccess && (
         <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 size={18} />
-          <span className="text-sm font-bold tracking-tight">Vos paramètres ont été mis à jour avec succès.</span>
+          <span className="text-sm font-bold tracking-tight">{successMessage}</span>
         </div>
       )}
 
@@ -129,7 +245,7 @@ export default function SettingsPage() {
       )}
 
       <div className="space-y-8">
-        {/* Identifiants et Mot de passe */}
+        {/* 1. Identifiants et Mot de passe */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
@@ -186,7 +302,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Sécurité */}
+        {/* 2. Sécurité du compte */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
@@ -214,7 +330,104 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Strava Section */}
+        {/* 3. Métriques Physiologiques */}
+        <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
+                  <Activity size={20} />
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">Métriques Physiologiques</h3>
+            </div>
+
+            {/* BOUTON permanent : Calculer automatiquement */}
+            <button
+              onClick={handleCalculatePhysio}
+              disabled={isCalculating}
+              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-indigo-100"
+            >
+              {isCalculating ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+              Calculer via l'historique
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+            <div>
+              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FC Repos (bpm)</label>
+              <input
+                type="number"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                value={physioData.restingHr}
+                onChange={(e) => setPhysioData({ ...physioData, restingHr: e.target.value })}
+                placeholder="ex: 50"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FC Max (bpm)</label>
+              <input
+                type="number"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                value={physioData.maxHr}
+                onChange={(e) => setPhysioData({ ...physioData, maxHr: e.target.value })}
+                placeholder="ex: 195"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FTP (Watts)</label>
+              <input
+                type="number"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                value={physioData.ftp}
+                onChange={(e) => setPhysioData({ ...physioData, ftp: e.target.value })}
+                placeholder="ex: 250"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Poids (kg)</label>
+              <input
+                type="number"
+                step="0.1"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                value={physioData.weight}
+                onChange={(e) => setPhysioData({ ...physioData, weight: e.target.value })}
+                placeholder="ex: 70.5"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Taille (cm)</label>
+              <input
+                type="number"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                value={physioData.height}
+                onChange={(e) => setPhysioData({ ...physioData, height: e.target.value })}
+                placeholder="ex: 180"
+              />
+            </div>
+          </div>
+
+          {/* Boutons contextuels d'Annulation et de Sauvegarde */}
+          {hasPhysioChanged && (
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-2">
+              <button
+                onClick={handleResyncPhysio}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+              >
+                <RotateCcw size={14} />
+                Revenir (Anciennes data)
+              </button>
+              <button
+                onClick={handleSavePhysio}
+                disabled={isSavingPhysio}
+                className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
+              >
+                {isSavingPhysio ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                Enregistrer
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* 4. Synchronisation Apps (Strava) */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
            <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-orange-50 rounded-lg text-[#FC4C02]">
@@ -222,13 +435,13 @@ export default function SettingsPage() {
             </div>
             <h3 className="font-bold text-slate-900 text-lg">Synchronisation Apps</h3>
           </div>
-            <StravaButton 
-              userStrava={userStrava} 
-              onSyncComplete={() => syncUser()} 
-            />
-          
+          <StravaButton 
+            userStrava={userStrava} 
+            onSyncComplete={() => syncUser()} 
+          />
         </section>
-        {/* Système */}
+
+        {/* 5. Audit Système */}
         <section className="bg-slate-900 p-8 rounded-2xl text-white">
           <div className="flex items-center gap-3 mb-6">
             <Calendar className="text-indigo-400" size={20} />
