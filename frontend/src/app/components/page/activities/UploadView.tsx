@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 
 import ActivityOverview from "./sections/ActivityOverview";
 import ActivityProfileChart from "./sections/ActivityProfileChart";
@@ -21,21 +21,38 @@ export default function UploadView({
   records,
   activity,
 }: UploadViewProps) {
-  const [selection, setSelection] = useState<any>({
+  const [selection, setSelection] = useState<{
+    startIndex: number | null;
+    endIndex: number | null;
+  }>({
     startIndex: null,
     endIndex: null,
   });
+
+  // Adaptateur : reçoit (start, end) et construit l'objet attendu par le state
+  const handleSelectionChange = useCallback(
+    (start: number, end: number) => {
+      setSelection({ startIndex: start, endIndex: end });
+    },
+    []
+  );
+
+  const handleResetSelection = useCallback(() => {
+    setSelection({ startIndex: null, endIndex: null });
+  }, []);
 
   const {
     unifiedSeries,
     availableMetrics,
     rangedData,
-
     speedStats,
     heartStats,
     cadenceStats,
     powerStats,
   } = useActivityAnalysis(records, selection);
+
+  const isRangeActive =
+    selection.startIndex !== null && selection.endIndex !== null;
 
   return (
     <div className="space-y-6">
@@ -49,20 +66,12 @@ export default function UploadView({
         unifiedSeries={unifiedSeries}
         availableMetrics={availableMetrics}
         selection={selection}
-        onSelectionChange={setSelection}
-        onResetSelection={() =>
-          setSelection({
-            startIndex: null,
-            endIndex: null,
-          })
-        }
+        onSelectionChange={handleSelectionChange}
+        onResetSelection={handleResetSelection}
       />
 
       <ActivityRangeStats
-        isRangeActive={
-          selection.startIndex !== null &&
-          selection.endIndex !== null
-        }
+        isRangeActive={isRangeActive}
         rangedData={rangedData}
         speedStats={speedStats}
         heartStats={heartStats}
