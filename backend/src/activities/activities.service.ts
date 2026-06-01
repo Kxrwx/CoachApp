@@ -36,7 +36,13 @@ export class ActivitiesService {
             distance: true,
           },
         },
-        uploadDetail: true,
+        uploadDetail: {
+          select: {
+            name: true,
+            type: true,
+            distance: true,
+          },
+        },
       },
       orderBy: { startDate: 'desc' },
     });

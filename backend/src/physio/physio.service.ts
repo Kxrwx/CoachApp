@@ -119,7 +119,7 @@ export class UserPhysiologyService {
       maxHr: calcMaxHr ?? currentPhysio?.maxHr ?? null,
       ftp: calcFtp ?? currentPhysio?.ftp ?? null,
       weight: calcWeight ?? currentPhysio?.weight ?? null,
-      height: currentPhysio?.height ?? null, // La taille n'est jamais recalculée, on garde l'actuelle
+      height: currentPhysio?.height ?? null, 
     };
 
     // Mettre à jour le profil physiologique
