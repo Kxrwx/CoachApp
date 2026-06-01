@@ -25,20 +25,34 @@ export default function SettingsPage() {
   });
   const [initialPhysio, setInitialPhysio] = useState<any>(null);
 
+  // Loaders
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPhysio, setIsSavingPhysio] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
+  
+  // Messages globaux (Sécurité / Compte)
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Détection des changements distincts
+  // Messages spécifiques à la Physiologie
+  const [showPhysioSuccess, setShowPhysioSuccess] = useState(false);
+  const [physioSuccessMessage, setPhysioSuccessMessage] = useState("");
+  const [physioError, setPhysioError] = useState<string | null>(null);
+
+  // Détection des changements
   const hasMfaChanged = user?.mfaEnabled !== mfaEnabled;
   const hasPasswordInput = newPassword.length > 0;
   const hasSecurityChanged = hasMfaChanged || hasPasswordInput;
   
-  // Changement spécifique à la physiologie
-  const hasPhysioChanged = initialPhysio && JSON.stringify(physioData) !== JSON.stringify(initialPhysio);
+  // Changement spécifique à la physiologie (Comparaison robuste)
+  const hasPhysioChanged = initialPhysio !== null && (
+    physioData.restingHr !== initialPhysio.restingHr ||
+    physioData.maxHr !== initialPhysio.maxHr ||
+    physioData.ftp !== initialPhysio.ftp ||
+    physioData.weight !== initialPhysio.weight ||
+    physioData.height !== initialPhysio.height
+  );
 
   useEffect(() => {
     const fetchPhysio = async () => {
@@ -46,10 +60,7 @@ export default function SettingsPage() {
         const res = await api('/physiology', { method: 'GET' });
         
         if (res.ok) {
-          // 1. On lit d'abord en texte brut pour éviter le crash du .json()
           const text = await res.text();
-          
-          // 2. On parse seulement si le texte n'est pas vide (sinon on prend un objet vide)
           const data = text ? JSON.parse(text) : {};
 
           const formattedData = {
@@ -97,9 +108,9 @@ export default function SettingsPage() {
   // Bouton 2 : Calculer automatiquement les datas à partir des activités en BDD
   const handleCalculatePhysio = async () => {
     setIsCalculating(true);
-    setError(null);
+    setPhysioError(null);
     try {
-      const res = await api('/physiology/calculate', { method: 'POST' });
+      const res = await api('/physiology/calculate', { method: 'GET' });
       if (!res.ok) throw new Error();
       
       const data = await res.json();
@@ -111,11 +122,11 @@ export default function SettingsPage() {
         ftp: data?.ftp?.toString() || physioData.ftp,
       });
 
-      setSuccessMessage("Métriques estimées. N'oubliez pas d'enregistrer !");
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 4000);
+      setPhysioSuccessMessage("Métriques estimées. N'oubliez pas d'enregistrer !");
+      setShowPhysioSuccess(true);
+      setTimeout(() => setShowPhysioSuccess(false), 4000);
     } catch (err) {
-      setError("Impossible de calculer les métriques depuis l'historique.");
+      setPhysioError("Impossible de calculer les métriques depuis l'historique.");
     } finally {
       setIsCalculating(false);
     }
@@ -126,7 +137,7 @@ export default function SettingsPage() {
     if (!hasPhysioChanged) return;
 
     setIsSavingPhysio(true);
-    setError(null);
+    setPhysioError(null);
 
     try {
       const physioPayload = {
@@ -145,11 +156,11 @@ export default function SettingsPage() {
       if (!physioRes.ok) throw new Error();
       
       setInitialPhysio(physioData); 
-      setSuccessMessage("Vos métriques physiologiques ont été enregistrées.");
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+      setPhysioSuccessMessage("Vos métriques physiologiques ont été enregistrées.");
+      setShowPhysioSuccess(true);
+      setTimeout(() => setShowPhysioSuccess(false), 3000);
     } catch (err) {
-      setError("Impossible de sauvegarder les métriques.");
+      setPhysioError("Impossible de sauvegarder les métriques.");
     } finally {
       setIsSavingPhysio(false);
     }
@@ -231,6 +242,7 @@ export default function SettingsPage() {
          </div>
       )}
 
+      {/* Alerte succès global (Sécurité) */}
       {showSuccess && (
         <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 size={18} />
@@ -238,6 +250,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Alerte erreur globale (Sécurité) */}
       {error && (
         <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 text-sm font-bold">
           {error}
@@ -332,7 +345,7 @@ export default function SettingsPage() {
 
         {/* 3. Métriques Physiologiques */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
                   <Activity size={20} />
@@ -350,6 +363,21 @@ export default function SettingsPage() {
               Calculer via l'historique
             </button>
           </div>
+
+          {/* Alerte spécifique succès Physiologie */}
+          {showPhysioSuccess && (
+            <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in">
+              <CheckCircle2 size={18} />
+              <span className="text-sm font-bold tracking-tight">{physioSuccessMessage}</span>
+            </div>
+          )}
+
+          {/* Alerte spécifique erreur Physiologie */}
+          {physioError && (
+            <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 text-sm font-bold animate-in fade-in">
+              {physioError}
+            </div>
+          )}
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
             <div>
@@ -405,26 +433,33 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Boutons contextuels d'Annulation et de Sauvegarde */}
-          {hasPhysioChanged && (
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-2">
-              <button
-                onClick={handleResyncPhysio}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
-              >
-                <RotateCcw size={14} />
-                Revenir (Anciennes data)
-              </button>
-              <button
-                onClick={handleSavePhysio}
-                disabled={isSavingPhysio}
-                className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
-              >
-                {isSavingPhysio ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                Enregistrer
-              </button>
-            </div>
-          )}
+          {/* Boutons contextuels d'Annulation et de Sauvegarde - Toujours visibles */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <button
+              onClick={handleResyncPhysio}
+              disabled={!hasPhysioChanged}
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                hasPhysioChanged 
+                  ? "text-slate-700 bg-slate-200 hover:bg-slate-300 cursor-pointer" 
+                  : "text-slate-400 bg-slate-100 cursor-not-allowed opacity-70"
+              }`}
+            >
+              <RotateCcw size={14} />
+              Revenir (Anciennes data)
+            </button>
+            <button
+              onClick={handleSavePhysio}
+              disabled={isSavingPhysio || !hasPhysioChanged}
+              className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                hasPhysioChanged 
+                  ? "bg-rose-600 hover:bg-rose-700 text-white cursor-pointer" 
+                  : "bg-rose-300 text-rose-50 cursor-not-allowed"
+              }`}
+            >
+              {isSavingPhysio ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+              Enregistrer
+            </button>
+          </div>
         </section>
 
         {/* 4. Synchronisation Apps (Strava) */}

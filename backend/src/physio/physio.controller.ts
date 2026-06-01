@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get,  Body, Req, UseGuards, Post } from '@nestjs/common';
 import { UserPhysiologyService } from './physio.service';
 import { AuthGuard } from '../auth/auth.guard'; 
 
@@ -12,8 +12,13 @@ export class UserPhysiologyController {
     return this.physiologyService.getPhysiology(req.user.sub);
   }
 
-  @Put()
+  @Post()
   async updatePhysiology(@Req() req, @Body() body: any) {
     return this.physiologyService.upsertPhysiology(req.user.sub, body);
+  }
+
+  @Get('calculate')
+  async calculatePhysiology(@Req() req) {
+    return this.physiologyService.calculateMetrics(req.user.sub);
   }
 }
