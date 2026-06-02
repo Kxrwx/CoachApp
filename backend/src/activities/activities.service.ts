@@ -38,8 +38,6 @@ export class ActivitiesService {
         },
         uploadDetail: {
           select: {
-            name: true,
-            type: true,
             distance: true,
           },
         },

@@ -126,6 +126,22 @@ export class UserPhysiologyService {
     return this.upsertPhysiology(userId, physiologyData);
   }
 
+  async getPerformanceStatsForMonth(userId: string, month: number, year: number) {
+  const periodStart = new Date(Date.UTC(year, month - 1, 1));
+
+  return this.prisma.performanceStats.findUnique({
+    where: {
+      userId_periodType_periodStart: {
+        userId,
+        periodType: 'monthly',
+        periodStart,
+      },
+    },
+  });
+}
+
+
+
   private async parseFitBuffer(buffer: Buffer): Promise<any> {
     return new Promise((resolve, reject) => {
       const fitParser = new FitParser({
@@ -162,4 +178,6 @@ export class UserPhysiologyService {
       });
     });
   }
+
+  
 }

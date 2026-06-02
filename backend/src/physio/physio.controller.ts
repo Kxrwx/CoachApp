@@ -21,4 +21,9 @@ export class UserPhysiologyController {
   async calculatePhysiology(@Req() req) {
     return this.physiologyService.calculateMetrics(req.user.sub);
   }
-}
+
+  @Post('month')
+  async getPerformanceStatsForMonth(@Req() req, @Body() body: { month: number; year: number }) {
+    return this.physiologyService.getPerformanceStatsForMonth(req.user.sub, body.month, body.year);
+  }
+  }
