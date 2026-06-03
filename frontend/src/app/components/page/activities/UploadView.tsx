@@ -171,6 +171,8 @@ export default function UploadView({
           hr: availableMetrics.heartRate,
           power: availableMetrics.power,
         }}
+        heartStats={heartStats}
+        powerStats={powerStats}
       />
     </div>
   );
