@@ -328,13 +328,13 @@ private async checkAndProposePhysioUpdates(userId: string, activityId: string, m
             userId,
             type: action.type,
             payload: action.payload,
-            status: 'PENDING'
+            status: 'PENDING',
+            expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), 
           }))
         });
         
         this.logger.log(`[Pending System] ${actionsToCreate.length} proposition(s) générée(s) pour l'utilisateur ${userId}`);
 
-        // 🚀 Notification temps réel via le Gateway WebSockets
         this.notificationGateway.sendToUser(userId, 'NEW_PENDING_ACTION', {
           count: actionsToCreate.length 
         });

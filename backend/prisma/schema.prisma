@@ -357,7 +357,6 @@ enum ActionStatus {
   REJECTED
 }
 
-// 3. Le modèle qui utilise les deux enums ci-dessus
 model PendingAction {
   id        String            @id @default(uuid())
   userId    String
@@ -366,7 +365,8 @@ model PendingAction {
   payload   Json
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
-
+  expiresAt DateTime
+  
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])

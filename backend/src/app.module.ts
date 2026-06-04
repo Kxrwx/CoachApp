@@ -26,6 +26,7 @@ import { RecordController } from './record/record.controller';
 import { RecordModule } from './record/record.module';
 import { PendingModule } from './pending/pending.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PendingCleanupService } from './pending-cleanup.service';
 
 @Module({
   imports: [
@@ -71,7 +72,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [AppController, StatsController, RecordController],
-  providers: [AppService, SessionCleanupService, ActivitiesService, RecordService],
+  providers: [AppService, SessionCleanupService, PendingCleanupService, RecordService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
