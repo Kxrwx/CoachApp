@@ -20,6 +20,10 @@ import { HealthModule } from './health/health.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { UserPhysiologyModule } from './physio/physio.module';
+import { RecordService } from './record/record.service';
+import { RecordController } from './record/record.controller';
+import { RecordModule } from './record/record.module';
 
 @Module({
   imports: [
@@ -59,9 +63,11 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     PlanningModule,
     GoalsModule,
     StatsModule,
+    UserPhysiologyModule,
+    RecordModule,
   ],
-  controllers: [AppController, StatsController],
-  providers: [AppService, SessionCleanupService, ActivitiesService],
+  controllers: [AppController, StatsController, RecordController],
+  providers: [AppService, SessionCleanupService, ActivitiesService, RecordService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
