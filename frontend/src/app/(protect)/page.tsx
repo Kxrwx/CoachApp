@@ -25,13 +25,12 @@ export default function HomePage() {
   useEffect(() => {
     const fetchHomeData = async () => {
       try {
-        // Ajustement des routes selon tes contrôleurs NestJS
         const [resStats, resGoals, resPhysio, resActivities, resPlanning] = await Promise.all([
           api("/stats/dashboard"),
           api("/goals"),
           api("/physiology/calculate"),
-          api("/activities"),       // Appelle ActivitiesController.getActivities()
-          api("/planning/workouts") // Appelle PlanningController.getAllWorkouts()
+          api("/activities"),
+          api("/planning/workouts")
         ]);
 
         const safeJson = async (res: Response) => {
@@ -50,13 +49,11 @@ export default function HomePage() {
         if (dataGoals) setGoals(dataGoals);
         if (dataPhysio) setPhysio(dataPhysio);
         
-        // Extraction & filtrage des données selon ton modèle Prisma
         if (dataActivities && Array.isArray(dataActivities)) {
           setRecentActivities(dataActivities.slice(0, 4));
         }
 
         if (dataPlanning && dataPlanning.plannedWorkouts) {
-          // On ne garde que les séances futures non annulées, triées par ordre chronologique
           const futures = dataPlanning.plannedWorkouts
             .filter((workout: any) => new Date(workout.startDate) >= now && workout.status !== 'cancelled')
             .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
@@ -317,9 +314,12 @@ export default function HomePage() {
               <p className="text-sm text-slate-500 py-4 text-center">Aucune activité récente enregistrée.</p>
             ) : (
               recentActivities.map((act: any, idx: number) => {
-                // Mapping sécurisé selon les sélections de ton service NestJS (findAll)
                 const name = act.stravaDetail?.name || (act.idStrava ? "Activité Strava" : "Activité importée");
-                const distance = act.stravaDetail?.distance || act.uploadDetail?.distance || 0;
+                // Extraction de la distance (en mètres)
+                const rawDistance = act.stravaDetail?.distance || act.uploadDetail?.distance || 0;
+                // Conversion en kilomètres
+                const distanceKm = rawDistance / 1000;
+                
                 const type = act.stravaDetail?.type || (act.idUpload ? "FIT File" : "Workout");
 
                 return (
@@ -342,7 +342,7 @@ export default function HomePage() {
                     </div>
                     <div className="text-right">
                       <span className="text-sm font-bold text-slate-900 block">
-                        {distance > 0 ? `${distance.toFixed(1)} km` : "--"}
+                        {distanceKm > 0 ? `${distanceKm.toFixed(1)} km` : "--"}
                       </span>
                     </div>
                   </div>
