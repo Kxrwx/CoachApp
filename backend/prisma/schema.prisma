@@ -27,6 +27,8 @@ model User {
 
   physiology      UserPhysiology?
   performanceStats PerformanceStats[]
+
+  pendingActions PendingAction[]
 }
 
 model Session {
@@ -342,4 +344,30 @@ model PerformanceStats {
 
   @@unique([userId, periodType, periodStart])
   @@index([userId, periodType, periodStart])
+}
+
+enum PendingActionType {
+  PHYSIOLOGY_UPDATE
+}
+
+// 2. Définition de l'enum pour le statut
+enum ActionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// 3. Le modèle qui utilise les deux enums ci-dessus
+model PendingAction {
+  id        String            @id @default(uuid())
+  userId    String
+  type      PendingActionType // <--- Prisma va maintenant le trouver ici !
+  status    ActionStatus      @default(PENDING)
+  payload   Json
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }

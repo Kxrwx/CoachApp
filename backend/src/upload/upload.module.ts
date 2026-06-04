@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import FitParser from 'fit-file-parser';
 import { StatsModule } from '@/stats/stats.module';
 import { StravaModule } from '../strava/strava.module';
+import { NotificationsModule } from '@/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { StravaModule } from '../strava/strava.module';
     FitParser,
     StatsModule,
     StravaModule,
+    NotificationsModule
   ],
   controllers: [UploadController],
   providers: [UploadService],

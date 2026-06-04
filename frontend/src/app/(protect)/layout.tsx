@@ -4,27 +4,29 @@ import Sidebar from '@/app/components/layout/Sidebar';
 import Header from '@/app/components/layout/Header';
 import { useAuth } from '@/app/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import PendingActionsChecker from '@/app/components/notif/PendingActionsChecker';
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const { user, loading } = useAuth();
-const router = useRouter();
+  const router = useRouter();
 
-useEffect(() => {
-  if (!loading && !user) {
-    router.replace('/auth');
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/auth');
+    }
+  }, [loading, user, router]); 
+
+  if (loading) {
+    return null; 
   }
-}, [loading, user]);
 
-if (loading) {
-  return null; 
-}
-
-if (!user) {
-  return null;
-}
+  if (!user) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans">
+    <div className="min-h-screen bg-[#f8fafc] font-sans relative">
       <Header />
       <div className="flex pt-16">
         <Sidebar />
@@ -32,6 +34,8 @@ if (!user) {
           {children}
         </main>
       </div>
+      
+      {user?.id && <PendingActionsChecker userId={user.id} />}
     </div>
   );
 }

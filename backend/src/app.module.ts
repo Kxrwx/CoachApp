@@ -24,6 +24,8 @@ import { UserPhysiologyModule } from './physio/physio.module';
 import { RecordService } from './record/record.service';
 import { RecordController } from './record/record.controller';
 import { RecordModule } from './record/record.module';
+import { PendingModule } from './pending/pending.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -65,6 +67,8 @@ import { RecordModule } from './record/record.module';
     StatsModule,
     UserPhysiologyModule,
     RecordModule,
+    PendingModule,
+    NotificationsModule,
   ],
   controllers: [AppController, StatsController, RecordController],
   providers: [AppService, SessionCleanupService, ActivitiesService, RecordService],
