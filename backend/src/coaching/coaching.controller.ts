@@ -57,4 +57,10 @@ export class CoachingController {
   ) {
     return this.coachingService.updatePermissions(id, req.user.sub, body);
   }
+
+  @Get('my-athletes-summary')
+  async getAthletesSummary(@Req() req: any) {
+    // req.user.sub contient l'ID du coach
+    return this.coachingService.getAthletesSummary(req.user.sub);
+  }
 }

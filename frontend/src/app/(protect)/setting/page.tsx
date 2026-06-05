@@ -21,7 +21,8 @@ export default function SettingsPage() {
     maxHr: "",
     ftp: "",
     weight: "",
-    height: ""
+    height: "",
+    state: "NORMAL"
   });
   const [initialPhysio, setInitialPhysio] = useState<any>(null);
 
@@ -51,7 +52,8 @@ export default function SettingsPage() {
     physioData.maxHr !== initialPhysio.maxHr ||
     physioData.ftp !== initialPhysio.ftp ||
     physioData.weight !== initialPhysio.weight ||
-    physioData.height !== initialPhysio.height
+    physioData.height !== initialPhysio.height ||
+    physioData.state !== initialPhysio.state
   );
 
   useEffect(() => {
@@ -68,7 +70,8 @@ export default function SettingsPage() {
             maxHr: data?.maxHr?.toString() || "",
             ftp: data?.ftp?.toString() || "",
             weight: data?.weight?.toString() || "",
-            height: data?.height?.toString() || ""
+            height: data?.height?.toString() || "",
+            state: data?.state || "NORMAL"
           };
           
           setPhysioData(formattedData);
@@ -134,38 +137,38 @@ export default function SettingsPage() {
 
   // Bouton 3 : Enregistrer les métriques physiologiques actuelles
   const handleSavePhysio = async () => {
-    if (!hasPhysioChanged) return;
+  if (!hasPhysioChanged) return;
 
-    setIsSavingPhysio(true);
-    setPhysioError(null);
+  setIsSavingPhysio(true);
+  setPhysioError(null);
 
-    try {
-      const physioPayload = {
-        restingHr: physioData.restingHr ? parseInt(physioData.restingHr, 10) : null,
-        maxHr: physioData.maxHr ? parseInt(physioData.maxHr, 10) : null,
-        ftp: physioData.ftp ? parseFloat(physioData.ftp) : null,
-        weight: physioData.weight ? parseFloat(physioData.weight) : null,
-        height: physioData.height ? parseFloat(physioData.height) : null,
-      };
+  try {
+    const physioPayload = {
+      restingHr: physioData.restingHr ? parseInt(physioData.restingHr, 10) : null,
+      maxHr: physioData.maxHr ? parseInt(physioData.maxHr, 10) : null,
+      ftp: physioData.ftp ? parseFloat(physioData.ftp) : null,
+      weight: physioData.weight ? parseFloat(physioData.weight) : null,
+      height: physioData.height ? parseFloat(physioData.height) : null,
+      state: physioData.state || "NORMAL", 
+    };
 
-      const physioRes = await api('/physiology', {
-        method: 'POST',
-        body: JSON.stringify(physioPayload),
-      });
+    const physioRes = await api('/physiology', {
+      method: 'POST',
+      body: JSON.stringify(physioPayload),
+    });
 
-      if (!physioRes.ok) throw new Error();
-      
-      setInitialPhysio(physioData); 
-      setPhysioSuccessMessage("Vos métriques physiologiques ont été enregistrées.");
-      setShowPhysioSuccess(true);
-      setTimeout(() => setShowPhysioSuccess(false), 3000);
-    } catch (err) {
-      setPhysioError("Impossible de sauvegarder les métriques.");
-    } finally {
-      setIsSavingPhysio(false);
-    }
-  };
-
+    if (!physioRes.ok) throw new Error();
+    
+    setInitialPhysio(physioData); 
+    setPhysioSuccessMessage("Vos métriques physiologiques ont été enregistrées.");
+    setShowPhysioSuccess(true);
+    setTimeout(() => setShowPhysioSuccess(false), 3000);
+  } catch (err) {
+    setPhysioError("Impossible de sauvegarder les métriques.");
+  } finally {
+    setIsSavingPhysio(false);
+  }
+};
   // Sauvegarde générale Sécurité
   const handleSaveSecurity = async () => {
     if (!hasSecurityChanged) return;
@@ -344,123 +347,137 @@ export default function SettingsPage() {
         </section>
 
         {/* 3. Métriques Physiologiques */}
-        <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
-                  <Activity size={20} />
-              </div>
-              <h3 className="font-bold text-slate-900 text-lg">Métriques Physiologiques</h3>
-            </div>
+<section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
+          <Activity size={20} />
+      </div>
+      <h3 className="font-bold text-slate-900 text-lg">Métriques Physiologiques</h3>
+    </div>
 
-            {/* BOUTON permanent : Calculer automatiquement */}
-            <button
-              onClick={handleCalculatePhysio}
-              disabled={isCalculating}
-              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-indigo-100"
-            >
-              {isCalculating ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-              Calculer via l'historique
-            </button>
-          </div>
+    {/* BOUTON permanent : Calculer automatiquement */}
+    <button
+      onClick={handleCalculatePhysio}
+      disabled={isCalculating}
+      className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-indigo-100"
+    >
+      {isCalculating ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+      Calculer via l'historique
+    </button>
+  </div>
 
-          {/* Alerte spécifique succès Physiologie */}
-          {showPhysioSuccess && (
-            <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in">
-              <CheckCircle2 size={18} />
-              <span className="text-sm font-bold tracking-tight">{physioSuccessMessage}</span>
-            </div>
-          )}
+  {/* Alerte spécifique succès Physiologie */}
+  {showPhysioSuccess && (
+    <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in">
+      <CheckCircle2 size={18} />
+      <span className="text-sm font-bold tracking-tight">{physioSuccessMessage}</span>
+    </div>
+  )}
 
-          {/* Alerte spécifique erreur Physiologie */}
-          {physioError && (
-            <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 text-sm font-bold animate-in fade-in">
-              {physioError}
-            </div>
-          )}
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
-            <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FC Repos (bpm)</label>
-              <input
-                type="number"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                value={physioData.restingHr}
-                onChange={(e) => setPhysioData({ ...physioData, restingHr: e.target.value })}
-                placeholder="ex: 50"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FC Max (bpm)</label>
-              <input
-                type="number"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                value={physioData.maxHr}
-                onChange={(e) => setPhysioData({ ...physioData, maxHr: e.target.value })}
-                placeholder="ex: 195"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FTP (Watts)</label>
-              <input
-                type="number"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                value={physioData.ftp}
-                onChange={(e) => setPhysioData({ ...physioData, ftp: e.target.value })}
-                placeholder="ex: 250"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Poids (kg)</label>
-              <input
-                type="number"
-                step="0.1"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                value={physioData.weight}
-                onChange={(e) => setPhysioData({ ...physioData, weight: e.target.value })}
-                placeholder="ex: 70.5"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Taille (cm)</label>
-              <input
-                type="number"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
-                value={physioData.height}
-                onChange={(e) => setPhysioData({ ...physioData, height: e.target.value })}
-                placeholder="ex: 180"
-              />
-            </div>
-          </div>
+  {/* Alerte spécifique erreur Physiologie */}
+  {physioError && (
+    <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 text-sm font-bold animate-in fade-in">
+      {physioError}
+    </div>
+  )}
+  
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FC Repos (bpm)</label>
+      <input
+        type="number"
+        className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+        value={physioData.restingHr || ''}
+        onChange={(e) => setPhysioData({ ...physioData, restingHr: e.target.value })}
+        placeholder="ex: 50"
+      />
+    </div>
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FC Max (bpm)</label>
+      <input
+        type="number"
+        className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+        value={physioData.maxHr || ''}
+        onChange={(e) => setPhysioData({ ...physioData, maxHr: e.target.value })}
+        placeholder="ex: 195"
+      />
+    </div>
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">FTP (Watts)</label>
+      <input
+        type="number"
+        className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+        value={physioData.ftp || ''}
+        onChange={(e) => setPhysioData({ ...physioData, ftp: e.target.value })}
+        placeholder="ex: 250"
+      />
+    </div>
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Poids (kg)</label>
+      <input
+        type="number"
+        step="0.1"
+        className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+        value={physioData.weight || ''}
+        onChange={(e) => setPhysioData({ ...physioData, weight: e.target.value })}
+        placeholder="ex: 70.5"
+      />
+    </div>
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Taille (cm)</label>
+      <input
+        type="number"
+        className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+        value={physioData.height || ''}
+        onChange={(e) => setPhysioData({ ...physioData, height: e.target.value })}
+        placeholder="ex: 180"
+      />
+    </div>
+    {/* Nouveau champ État */}
+    <div>
+      <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">État actuel</label>
+      <select
+        className="w-full p-3 border border-slate-200 rounded-xl text-slate-700 font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all bg-white"
+        value={physioData.state || "NORMAL"}
+        onChange={(e) => setPhysioData({ ...physioData, state: e.target.value })}
+      >
+        <option value="NORMAL">Normal</option>
+        <option value="FATIGUED">Fatigué</option>
+        <option value="PAIN">Douleur</option>
+        <option value="INJURED">Blessé</option>
+      </select>
+    </div>
+  </div>
 
-          {/* Boutons contextuels d'Annulation et de Sauvegarde - Toujours visibles */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-            <button
-              onClick={handleResyncPhysio}
-              disabled={!hasPhysioChanged}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                hasPhysioChanged 
-                  ? "text-slate-700 bg-slate-200 hover:bg-slate-300 cursor-pointer" 
-                  : "text-slate-400 bg-slate-100 cursor-not-allowed opacity-70"
-              }`}
-            >
-              <RotateCcw size={14} />
-              Revenir (Anciennes data)
-            </button>
-            <button
-              onClick={handleSavePhysio}
-              disabled={isSavingPhysio || !hasPhysioChanged}
-              className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                hasPhysioChanged 
-                  ? "bg-rose-600 hover:bg-rose-700 text-white cursor-pointer" 
-                  : "bg-rose-300 text-rose-50 cursor-not-allowed"
-              }`}
-            >
-              {isSavingPhysio ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-              Enregistrer
-            </button>
-          </div>
-        </section>
+  {/* Boutons contextuels d'Annulation et de Sauvegarde */}
+  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+    <button
+      onClick={handleResyncPhysio}
+      disabled={!hasPhysioChanged}
+      className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+        hasPhysioChanged 
+          ? "text-slate-700 bg-slate-200 hover:bg-slate-300 cursor-pointer" 
+          : "text-slate-400 bg-slate-100 cursor-not-allowed opacity-70"
+      }`}
+    >
+      <RotateCcw size={14} />
+      Revenir (Anciennes data)
+    </button>
+    <button
+      onClick={handleSavePhysio}
+      disabled={isSavingPhysio || !hasPhysioChanged}
+      className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+        hasPhysioChanged 
+          ? "bg-rose-600 hover:bg-rose-700 text-white cursor-pointer" 
+          : "bg-rose-300 text-rose-50 cursor-not-allowed"
+      }`}
+    >
+      {isSavingPhysio ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+      Enregistrer
+    </button>
+  </div>
+</section>
 
         {/* 4. Synchronisation Apps (Strava) */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">

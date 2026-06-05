@@ -210,4 +210,84 @@ export class CoachingService {
       },
     });
   }
+
+
+  async getAthletesSummary(coachId: string) {
+    const links = await this.prisma.coachingLink.findMany({
+      where: { coachId, status: 'ACTIVE' },
+      include: { 
+        athlete: {
+          select: { id: true, email: true }
+        }
+      }
+    });
+
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1));
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const athletesSummary = await Promise.all(links.map(async (link) => {
+      // FIX TYPESCRIPT : On déclare explicitement les types ici
+      let weeklyDistance: number | null = null;
+      let lastActivityDate: Date | null = null;
+      let physioData: { ftp: number | null; restingHr: number | null; weight: number | null; state: string } | null = null;
+
+      if (link.shareActivities) {
+        const weeklyActivities = await this.prisma.activity.findMany({
+          where: { 
+            userId: link.athleteId,
+            startDate: { gte: startOfWeek },
+            idUpload: { not: null } 
+          },
+          include: { uploadDetail: true }
+        });
+
+        weeklyDistance = weeklyActivities.reduce((acc, curr) => {
+          return acc + (curr.uploadDetail?.distance || 0);
+        }, 0);
+
+        const lastActivity = await this.prisma.activity.findFirst({
+          where: { 
+            userId: link.athleteId,
+            idUpload: { not: null }
+          },
+          orderBy: { startDate: 'desc' },
+          select: { startDate: true }
+        });
+        lastActivityDate = lastActivity?.startDate || null;
+      }
+
+      if (link.sharePhysiology) {
+        const physio = await this.prisma.userPhysiology.findUnique({
+          where: { userId: link.athleteId },
+          select: { ftp: true, restingHr: true, weight: true, state: true }
+        });
+        
+        if (physio) {
+          physioData = {
+            ftp: physio.ftp,
+            restingHr: physio.restingHr,
+            weight: physio.weight,
+            state: physio.state 
+          };
+        }
+      }
+
+      return {
+        linkId: link.id,
+        athlete: link.athlete,
+        permissions: {
+          shareActivities: link.shareActivities,
+          sharePhysiology: link.sharePhysiology,
+        },
+        stats: {
+          weeklyDistance: weeklyDistance !== null ? parseFloat((weeklyDistance / 1000).toFixed(1)) : null,
+          lastActivityDate,
+          physio: physioData
+        }
+      };
+    }));
+
+    return athletesSummary;
+  }
 }

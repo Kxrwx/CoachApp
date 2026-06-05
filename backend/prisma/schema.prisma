@@ -293,24 +293,30 @@ model Stats {
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, periodType]) // Une seule ligne par période pour les stats globales
+  @@unique([userId, periodType]) 
   @@index([userId, periodType])
 }
 
 //Physio 
 
-model UserPhysiology {
-  id String @id @default(uuid())
+enum AthleteState {
+  NORMAL
+  FATIGUED
+  PAIN
+  INJURED
+}
 
-  userId String @unique
+model UserPhysiology {
+  id        String   @id @default(uuid())
+  userId    String   @unique
 
   restingHr Int?
-  maxHr Int?
+  maxHr     Int?
+  ftp       Float?
+  weight    Float?
+  height    Float?
 
-  ftp Float?
-
-  weight Float?
-  height Float?
+  state     AthleteState   @default(NORMAL) 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -367,7 +373,7 @@ enum ActionStatus {
 model PendingAction {
   id        String            @id @default(uuid())
   userId    String
-  type      PendingActionType // <--- Prisma va maintenant le trouver ici !
+  type      PendingActionType 
   status    ActionStatus      @default(PENDING)
   payload   Json
   createdAt DateTime          @default(now())
