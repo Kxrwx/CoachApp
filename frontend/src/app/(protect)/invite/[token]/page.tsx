@@ -50,20 +50,22 @@ export default function InviteConsentPage() {
     fetchInviteDetails();
   }, [token, user, router]);
 
-  const handleAccept = async () => {
+ const handleAccept = async () => {
     setSaving(true);
     try {
       const res = await api('/coaching/invitations/consume', {
         method: 'POST',
-        body: JSON.stringify({ token, permissions }),
+        body: JSON.stringify({ 
+          token, 
+          ...permissions
+        }),
       });
 
       if (res.ok) {
-        // Succès ! On redirige vers son tableau de bord "Mon Coach"
         router.push('/my-coach?success=true');
       } else {
         const data = await res.json();
-        setError(data.message || "Une erreur est survenue lors de l'acceptation.");
+        setError(data.message || "Une erreur est survenue.");
         setSaving(false);
       }
     } catch {
@@ -71,7 +73,6 @@ export default function InviteConsentPage() {
       setSaving(false);
     }
   };
-
   const togglePermission = (key: keyof typeof permissions) => {
     setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
   };

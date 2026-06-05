@@ -160,4 +160,37 @@ export class CoachingService {
       where: { id: linkId }
     });
   }
+
+  // ==========================================
+  // 7. METTRE À JOUR LES PERMISSIONS
+  // ==========================================
+  async updatePermissions(
+    linkId: string, 
+    userId: string, 
+    data: { shareActivities: boolean; sharePhysiology: boolean; shareCalendar: boolean }
+  ) {
+    // 1. Récupération du lien
+    const link = await this.prisma.coachingLink.findUnique({
+      where: { id: linkId }
+    });
+
+    if (!link) {
+      throw new NotFoundException("Lien de coaching introuvable.");
+    }
+
+    // 2. Sécurité : seul le coach ou l'athlète concerné peut modifier les permissions
+    if (link.coachId !== userId && link.athleteId !== userId) {
+      throw new ForbiddenException("Vous n'avez pas l'autorisation de modifier ce lien.");
+    }
+
+    // 3. Mise à jour en base
+    return this.prisma.coachingLink.update({
+      where: { id: linkId },
+      data: {
+        shareActivities: data.shareActivities,
+        sharePhysiology: data.sharePhysiology,
+        shareCalendar: data.shareCalendar,
+      },
+    });
+  }
 }
