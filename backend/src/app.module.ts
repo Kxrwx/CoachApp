@@ -27,6 +27,7 @@ import { RecordModule } from './record/record.module';
 import { PendingModule } from './pending/pending.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PendingCleanupService } from './pending-cleanup.service';
+import { CoachingModule } from './coaching/coaching.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { PendingCleanupService } from './pending-cleanup.service';
     RecordModule,
     PendingModule,
     NotificationsModule,
+    CoachingModule,
   ],
   controllers: [AppController, StatsController, RecordController],
   providers: [AppService, SessionCleanupService, PendingCleanupService, RecordService],

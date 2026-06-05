@@ -29,6 +29,11 @@ model User {
   performanceStats PerformanceStats[]
 
   pendingActions PendingAction[]
+
+  roles                  UserRole[]
+  coachingLinksAsCoach   CoachingLink[] @relation("CoachRelation")
+  coachingLinksAsAthlete CoachingLink[] @relation("AthleteRelation")
+  sentInvitations        Invitation[]
 }
 
 model Session {
@@ -370,4 +375,51 @@ model PendingAction {
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+}
+
+// --- Système de Rôles (pour gérer le multi-casquette : Athlète, Coach, Admin) ---
+enum Role {
+  ATHLETE
+  COACH
+  ADMIN
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  role   Role
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+// --- Coaching & Invitations ---
+model CoachingLink {
+  id        String   @id @default(uuid())
+  coachId   String
+  athleteId String
+  status    String   @default("ACTIVE") // ACTIVE, TERMINATED
+  
+  // NOUVEAU : Permissions de partage de données
+  shareActivities Boolean @default(true) // Strava, Uploads
+  sharePhysiology Boolean @default(false) // Poids, FC Max, FTP (plus sensible)
+  shareCalendar   Boolean @default(true) // Séances planifiées
+
+  createdAt DateTime @default(now())
+
+  coach   User @relation("CoachRelation", fields: [coachId], references: [id])
+  athlete User @relation("AthleteRelation", fields: [athleteId], references: [id])
+
+  @@unique([coachId, athleteId])
+}
+
+model Invitation {
+  id        String    @id @default(uuid())
+  token     String    @unique @default(uuid())
+  coachId   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
 }

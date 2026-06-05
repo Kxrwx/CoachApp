@@ -132,29 +132,35 @@ export class AuthService {
    * @return {*} => recuperer les infos de l'utilisateur
    * @memberof AuthService
    */
-  async getMe(userId: string) {
-    const user = await this.prisma.user.findUnique({
-  where: { id: userId },
-  select: {
-    id: true,
-    email: true,
-    mfaEnabled: true,
-    createdAt: true,
-    updatedAt: true,
-    integrations: {
-      select: {
-        usersStrava: true, 
+async getMe(userId: string) {
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      mfaEnabled: true,
+      createdAt: true,
+      updatedAt: true,
+      roles: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
+      integrations: {
+        select: {
+          usersStrava: true,
+        },
       },
     },
-  },
-});
+  });
 
-    if (!user) {
-      throw new NotFoundException('Utilisateur non trouvé');
-    }
-
-    return user;
+  if (!user) {
+    throw new NotFoundException('Utilisateur non trouvé');
   }
+
+  return user;
+}
 
 /**
    *
