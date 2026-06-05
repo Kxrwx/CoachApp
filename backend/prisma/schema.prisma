@@ -418,7 +418,6 @@ model Invitation {
   token     String    @unique @default(uuid())
   coachId   String
   expiresAt DateTime
-  usedAt    DateTime?
   createdAt DateTime  @default(now())
 
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)

@@ -49,9 +49,6 @@ export class CoachingService {
     if (!invitation) {
       throw new NotFoundException("Lien d'invitation introuvable.");
     }
-    if (invitation.usedAt) {
-      throw new BadRequestException("Ce lien d'invitation a déjà été utilisé.");
-    }
     if (invitation.expiresAt < new Date()) {
       throw new BadRequestException("Ce lien d'invitation a expiré.");
     }
@@ -59,7 +56,7 @@ export class CoachingService {
     return invitation;
   }
 
-  // ==========================================
+// ==========================================
   // 3. CONSOMMER L'INVITATION (Validation + Permissions)
   // ==========================================
   async consumeInvitation(
@@ -68,15 +65,12 @@ export class CoachingService {
   ) {
     const { token, shareActivities, sharePhysiology, shareCalendar } = body;
 
-    // 1. Récupération et vérification de l'invitation
     const invitation = await this.getInvitationDetails(token);
 
-    // 2. Anti Auto-coaching
     if (invitation.coachId === athleteId) {
       throw new BadRequestException("Vous ne pouvez pas vous coacher vous-même.");
     }
 
-    // 3. Vérification des doublons
     const existingLink = await this.prisma.coachingLink.findUnique({
       where: {
         coachId_athleteId: { coachId: invitation.coachId, athleteId },
@@ -87,7 +81,6 @@ export class CoachingService {
       throw new BadRequestException("Vous êtes déjà suivi par ce coach.");
     }
 
-    // 4. Exécution (Transaction)
     const [coachingLink] = await this.prisma.$transaction([
       this.prisma.coachingLink.create({
         data: {
@@ -99,9 +92,8 @@ export class CoachingService {
           shareCalendar,
         },
       }),
-      this.prisma.invitation.update({
+      this.prisma.invitation.delete({
         where: { id: invitation.id },
-        data: { usedAt: new Date() },
       }),
     ]);
 
@@ -142,6 +134,30 @@ export class CoachingService {
       orderBy: {
         createdAt: 'desc'
       }
+    });
+  }
+
+  // ==========================================
+  // 6. ROMPRE LE SUIVI (Supprimer le lien)
+  // ==========================================
+  async terminateCoachingLink(linkId: string, userId: string) {
+    // 1. On cherche le lien
+    const link = await this.prisma.coachingLink.findUnique({
+      where: { id: linkId }
+    });
+
+    if (!link) {
+      throw new NotFoundException("Lien introuvable.");
+    }
+
+    // 2. Sécurité : Vérifier que l'utilisateur est soit le coach, soit l'athlète du lien
+    if (link.coachId !== userId && link.athleteId !== userId) {
+      throw new ForbiddenException("Vous n'avez pas l'autorisation de supprimer ce lien.");
+    }
+
+    // 3. Suppression du lien
+    return this.prisma.coachingLink.delete({
+      where: { id: linkId }
     });
   }
 }

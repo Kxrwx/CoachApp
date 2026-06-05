@@ -47,6 +47,22 @@ export default function MyCoachPage() {
     }
   };
 
+  const handleTerminate = async () => {
+  if (!coachLink || !confirm("Êtes-vous sûr de vouloir rompre le suivi avec ce coach ?")) return;
+
+  try {
+    const res = await api(`/coaching/link/${coachLink.id}`, {
+      method: 'DELETE',
+    });
+
+    if (res.ok) {
+      setCoachLink(null);
+    }
+  } catch (err) {
+    console.error("Erreur lors de la rupture du suivi", err);
+  }
+};
+
   useEffect(() => {
     fetchMyCoach();
   }, []);
@@ -76,10 +92,13 @@ export default function MyCoachPage() {
             </div>
           </div>
           
-          <button className="flex items-center gap-2 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg font-medium transition-colors">
-            <UserMinus size={18} />
-            Rompre le suivi
-          </button>
+          <button 
+  onClick={handleTerminate}
+  className="flex items-center gap-2 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg font-medium transition-colors"
+>
+  <UserMinus size={18} />
+  Rompre le suivi
+</button>
         </div>
       ) : (
         // --- Affichage si AUCUN Coach ---

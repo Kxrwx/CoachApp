@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Req, UseGuards, Delete } from '@nestjs/common';
 import { CoachingService } from './coaching.service';
 import { AuthGuard } from '../auth/auth.guard';
 
@@ -34,5 +34,10 @@ export class CoachingController {
   @Get('my-athletes')
   async getMyAthletes(@Req() req) {
     return this.coachingService.getMyAthletes(req.user.sub);
+  }
+
+  @Delete('link/:id')
+  async terminateCoaching(@Req() req, @Param('id') id: string) {
+    return this.coachingService.terminateCoachingLink(id, req.user.sub);
   }
 }
