@@ -227,24 +227,25 @@ export class CoachingService {
     startOfWeek.setHours(0, 0, 0, 0);
 
     const athletesSummary = await Promise.all(links.map(async (link) => {
-      // FIX TYPESCRIPT : On déclare explicitement les types ici
       let weeklyDistance: number | null = null;
       let lastActivityDate: Date | null = null;
       let physioData: { ftp: number | null; restingHr: number | null; weight: number | null; state: string } | null = null;
 
-      if (link.shareActivities) {
-        const weeklyActivities = await this.prisma.activity.findMany({
-          where: { 
-            userId: link.athleteId,
-            startDate: { gte: startOfWeek },
-            idUpload: { not: null } 
-          },
-          include: { uploadDetail: true }
-        });
+     if (link.shareActivities) {
+  const weeklyActivities = await this.prisma.activity.findMany({
+    where: { 
+      userId: link.athleteId,
+      startDate: { gte: startOfWeek },
+      idUpload: { not: null } 
+    },
+    include: { uploadDetail: true } 
+  });
 
-        weeklyDistance = weeklyActivities.reduce((acc, curr) => {
-          return acc + (curr.uploadDetail?.distance || 0);
-        }, 0);
+
+
+  weeklyDistance = weeklyActivities.reduce((acc, curr) => {
+    return acc + (curr.uploadDetail?.distance || 0);
+  }, 0);
 
         const lastActivity = await this.prisma.activity.findFirst({
           where: { 
@@ -281,10 +282,10 @@ export class CoachingService {
           sharePhysiology: link.sharePhysiology,
         },
         stats: {
-          weeklyDistance: weeklyDistance !== null ? parseFloat((weeklyDistance / 1000).toFixed(1)) : null,
-          lastActivityDate,
-          physio: physioData
-        }
+  weeklyDistance: weeklyDistance !== null ? parseFloat(weeklyDistance.toFixed(1)) : null,
+  lastActivityDate,
+  physio: physioData
+}
       };
     }));
 
