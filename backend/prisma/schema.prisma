@@ -9,31 +9,33 @@ datasource db {
 }
 
 model User {
-  id              String           @id @default(uuid())
-  email           String           @unique
-  passwordHash    String
-  mfaEnabled      Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  stats           Stats[]
-  activities      Activity[]
-  computedMetrics ComputedMetric[]
-  devices         Device[]
-  goals           Goal[]
-  integrations    Integration[]
-  personalRecords PersonalRecord[]
-  plannedWorkouts PlannedWorkout[]
-  sessions        Session[]
+  id               String             @id @default(uuid())
+  email            String             @unique
+  passwordHash     String
+  mfaEnabled       Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  stats            Stats[]
+  activities       Activity[]
+  computedMetrics  ComputedMetric[]
+  devices          Device[]
+  goals            Goal[]
+  integrations     Integration[]
+  personalRecords  PersonalRecord[]
+  plannedWorkouts  PlannedWorkout[]
+  sessions         Session[]
 
-  physiology      UserPhysiology?
+  physiology       UserPhysiology?
   performanceStats PerformanceStats[]
 
-  pendingActions PendingAction[]
+  pendingActions   PendingAction[]
+  roles            UserRole[]
 
-  roles                  UserRole[]
-  coachingLinksAsCoach   CoachingLink[] @relation("CoachRelation")
-  coachingLinksAsAthlete CoachingLink[] @relation("AthleteRelation")
-  sentInvitations        Invitation[]
+  coachingLinksAsCoach   CoachingLink[] @relation("CoachLinks")
+  coachingLinksAsAthlete CoachingLink[] @relation("AthleteLinks")
+
+
+  sentInvitations  Invitation[]
 }
 
 model Session {
@@ -395,20 +397,23 @@ model UserRole {
 
 // --- Coaching & Invitations ---
 model CoachingLink {
-  id        String   @id @default(uuid())
-  coachId   String
-  athleteId String
-  status    String   @default("ACTIVE") // ACTIVE, TERMINATED
+  id              String   @id @default(uuid())
+  coachId         String
+  athleteId       String
+  status          String   @default("ACTIVE")
   
-  // NOUVEAU : Permissions de partage de données
-  shareActivities Boolean @default(true) // Strava, Uploads
-  sharePhysiology Boolean @default(false) // Poids, FC Max, FTP (plus sensible)
-  shareCalendar   Boolean @default(true) // Séances planifiées
+  // Nouvelles permissions
+  shareActivities Boolean  @default(true)
+  sharePhysiology Boolean  @default(false)
+  shareRecords    Boolean  @default(true)
+  shareObjectives Boolean  @default(true)
+  shareAnalytics  Boolean  @default(true)
 
-  createdAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  coach   User @relation("CoachRelation", fields: [coachId], references: [id])
-  athlete User @relation("AthleteRelation", fields: [athleteId], references: [id])
+  coach           User     @relation("CoachLinks", fields: [coachId], references: [id])
+  athlete         User     @relation("AthleteLinks", fields: [athleteId], references: [id])
 
   @@unique([coachId, athleteId])
 }

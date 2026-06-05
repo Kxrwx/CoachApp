@@ -2,6 +2,15 @@ import { Controller, Post, Get, Body, Param, Req, UseGuards, Delete, Patch } fro
 import { CoachingService } from './coaching.service';
 import { AuthGuard } from '../auth/auth.guard';
 
+// 1. Définir une interface pour éviter de répéter le type
+interface PermissionsDto {
+  shareActivities: boolean;
+  sharePhysiology: boolean;
+  shareRecords: boolean;
+  shareObjectives: boolean;
+  shareAnalytics: boolean;
+}
+
 @Controller('coaching')
 @UseGuards(AuthGuard)
 export class CoachingController {
@@ -20,7 +29,7 @@ export class CoachingController {
   @Post('invitations/consume')
   async consumeInvitation(
     @Req() req, 
-    @Body() body: { token: string; shareActivities: boolean; sharePhysiology: boolean; shareCalendar: boolean }
+    @Body() body: { token: string } & PermissionsDto 
   ) {
     return this.coachingService.consumeInvitation(req.user.sub, body);
   }
@@ -29,7 +38,6 @@ export class CoachingController {
   async getMyCoach(@Req() req) {
     return this.coachingService.getMyCoach(req.user.sub);
   }
-
 
   @Get('my-athletes')
   async getMyAthletes(@Req() req) {
@@ -45,7 +53,7 @@ export class CoachingController {
   async updatePermissions(
     @Req() req, 
     @Param('id') id: string, 
-    @Body() body: { shareActivities: boolean; sharePhysiology: boolean; shareCalendar: boolean }
+    @Body() body: PermissionsDto
   ) {
     return this.coachingService.updatePermissions(id, req.user.sub, body);
   }

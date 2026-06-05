@@ -61,9 +61,16 @@ export class CoachingService {
   // ==========================================
   async consumeInvitation(
     athleteId: string, 
-    body: { token: string; shareActivities: boolean; sharePhysiology: boolean; shareCalendar: boolean }
+    body: { 
+      token: string; 
+      shareActivities: boolean; 
+      sharePhysiology: boolean; 
+      shareRecords: boolean; 
+      shareObjectives: boolean; 
+      shareAnalytics: boolean 
+    }
   ) {
-    const { token, shareActivities, sharePhysiology, shareCalendar } = body;
+    const { token, shareActivities, sharePhysiology, shareRecords, shareObjectives, shareAnalytics } = body;
 
     const invitation = await this.getInvitationDetails(token);
 
@@ -89,7 +96,9 @@ export class CoachingService {
           status: 'ACTIVE',
           shareActivities,
           sharePhysiology,
-          shareCalendar,
+          shareRecords,
+          shareObjectives,
+          shareAnalytics,
         },
       }),
       this.prisma.invitation.delete({
@@ -167,7 +176,13 @@ export class CoachingService {
   async updatePermissions(
     linkId: string, 
     userId: string, 
-    data: { shareActivities: boolean; sharePhysiology: boolean; shareCalendar: boolean }
+    data: { 
+      shareActivities: boolean; 
+      sharePhysiology: boolean; 
+      shareRecords: boolean; 
+      shareObjectives: boolean; 
+      shareAnalytics: boolean 
+    }
   ) {
     // 1. Récupération du lien
     const link = await this.prisma.coachingLink.findUnique({
@@ -189,7 +204,9 @@ export class CoachingService {
       data: {
         shareActivities: data.shareActivities,
         sharePhysiology: data.sharePhysiology,
-        shareCalendar: data.shareCalendar,
+        shareRecords: data.shareRecords,
+        shareObjectives: data.shareObjectives,
+        shareAnalytics: data.shareAnalytics,
       },
     });
   }

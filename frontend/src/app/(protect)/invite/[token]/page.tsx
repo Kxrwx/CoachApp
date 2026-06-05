@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { ShieldCheck, Activity, Heart, Calendar, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Activity, Heart, Trophy,Target, CheckCircle2, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 
 export default function InviteConsentPage() {
@@ -19,8 +19,10 @@ export default function InviteConsentPage() {
   // État des consentements
   const [permissions, setPermissions] = useState({
     shareActivities: true,
-    sharePhysiology: false, // Sensible, désactivé par défaut
-    shareCalendar: true,
+    sharePhysiology: false, 
+    shareRecords: false,
+    shareObjectives: false,
+    shareAnalytics: false,
   });
 
   useEffect(() => {
@@ -55,10 +57,7 @@ export default function InviteConsentPage() {
     try {
       const res = await api('/coaching/invitations/consume', {
         method: 'POST',
-        body: JSON.stringify({ 
-          token, 
-          ...permissions
-        }),
+        body: JSON.stringify({ token, ...permissions }),
       });
 
       if (res.ok) {
@@ -69,7 +68,7 @@ export default function InviteConsentPage() {
         setSaving(false);
       }
     } catch {
-      setError("Erreur de connexion serveur.");
+      setError("Erreur serveur.");
       setSaving(false);
     }
   };
@@ -77,84 +76,55 @@ export default function InviteConsentPage() {
     setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Analyse du lien d'invitation...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Analyse du lien...</div>;
   if (error) return <div className="min-h-screen flex items-center justify-center text-red-500 font-bold">{error}</div>;
+
+  const PERMISSION_ITEMS = [
+    { key: 'shareActivities', icon: Activity, title: 'Activités (Uploads)', desc: 'Accès exclusif à vos séances importées.' },
+    { key: 'sharePhysiology', icon: Heart, title: 'Données Physio', desc: 'FC Max, seuils, poids, FTP.' },
+    { key: 'shareRecords', icon: Trophy, title: 'Records (PRs)', desc: 'Meilleurs temps et puissances max.' },
+    { key: 'shareObjectives', icon: Target, title: 'Objectifs', desc: 'Vos courses et buts de la saison.' },
+    { key: 'shareAnalytics', icon: BarChart3, title: 'Analyse de données', desc: 'Statistiques globales et charge d\'entraînement.' },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-xl w-full bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
         
-        {/* Header Carte */}
         <div className="bg-indigo-600 p-8 text-center text-white">
           <div className="h-20 w-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
             <ShieldCheck size={40} className="text-white" />
           </div>
           <h1 className="text-2xl font-black italic tracking-tight uppercase">Demande de Suivi</h1>
-          <p className="mt-2 text-indigo-100">
-            Le coach <strong>{invitation.coach.email}</strong> souhaite vous accompagner.
-          </p>
+          <p className="mt-2 text-indigo-100">Le coach <strong>{invitation?.coach?.email}</strong> souhaite vous accompagner.</p>
         </div>
 
-        {/* Section Consentement */}
         <div className="p-8">
-          <h2 className="text-lg font-bold text-slate-900 mb-6">Quelles données souhaitez-vous partager avec ce coach ?</h2>
+          <h2 className="text-lg font-bold text-slate-900 mb-6">Quelles données souhaitez-vous partager ?</h2>
           
-          <div className="space-y-4">
-            {/* Toggle Activités */}
-            <div 
-              onClick={() => togglePermission('shareActivities')}
-              className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${permissions.shareActivities ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`}
-            >
-              <div className="flex items-center gap-4">
-                <Activity className={permissions.shareActivities ? 'text-indigo-600' : 'text-slate-400'} size={24} />
-                <div>
-                  <h3 className="font-bold text-slate-900">Activitées (Strava, Uploads)</h3>
-                  <p className="text-sm text-slate-500">Distance, puissance, GPS, chronos.</p>
+          <div className="space-y-3">
+            {PERMISSION_ITEMS.map(({ key, icon: Icon, title, desc }) => {
+              const isChecked = permissions[key as keyof typeof permissions];
+              return (
+                <div 
+                  key={key}
+                  onClick={() => togglePermission(key as any)}
+                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <Icon className={isChecked ? 'text-indigo-600' : 'text-slate-400'} size={24} />
+                    <div>
+                      <h3 className="font-bold text-slate-900">{title}</h3>
+                      <p className="text-sm text-slate-500">{desc}</p>
+                    </div>
+                  </div>
+                  <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${isChecked ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
+                    {isChecked && <CheckCircle2 size={16} className="text-white" />}
+                  </div>
                 </div>
-              </div>
-              <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${permissions.shareActivities ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
-                {permissions.shareActivities && <CheckCircle2 size={16} className="text-white" />}
-              </div>
-            </div>
-
-            {/* Toggle Calendrier */}
-            <div 
-              onClick={() => togglePermission('shareCalendar')}
-              className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${permissions.shareCalendar ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`}
-            >
-              <div className="flex items-center gap-4">
-                <Calendar className={permissions.shareCalendar ? 'text-indigo-600' : 'text-slate-400'} size={24} />
-                <div>
-                  <h3 className="font-bold text-slate-900">Calendrier & Objectifs</h3>
-                  <p className="text-sm text-slate-500">Permet au coach de planifier des séances.</p>
-                </div>
-              </div>
-              <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${permissions.shareCalendar ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
-                {permissions.shareCalendar && <CheckCircle2 size={16} className="text-white" />}
-              </div>
-            </div>
-
-            {/* Toggle Physio (Données sensibles) */}
-            <div 
-              onClick={() => togglePermission('sharePhysiology')}
-              className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${permissions.sharePhysiology ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`}
-            >
-              <div className="flex items-center gap-4">
-                <Heart className={permissions.sharePhysiology ? 'text-indigo-600' : 'text-slate-400'} size={24} />
-                <div>
-                  <h3 className="font-bold text-slate-900">Données Physiologiques</h3>
-                  <p className="text-sm text-slate-500">Poids, Fréquence Cardiaque max, FTP.</p>
-                </div>
-              </div>
-              <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center ${permissions.sharePhysiology ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'}`}>
-                {permissions.sharePhysiology && <CheckCircle2 size={16} className="text-white" />}
-              </div>
-            </div>
+              );
+            })}
           </div>
-
-          <p className="text-xs text-slate-400 mt-6 text-center">
-            Vous pourrez modifier ces accès à tout moment depuis les paramètres de votre compte.
-          </p>
 
           <button 
             onClick={handleAccept}
