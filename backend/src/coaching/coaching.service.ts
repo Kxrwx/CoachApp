@@ -296,87 +296,281 @@ export class CoachingService {
     return athletesSummary;
   }
 
-  async getAthleteDetails(coachId: string, athleteId: string): Promise<{
-    athlete: { id: string; email: string };
-    permissions: { shareActivities: boolean; sharePhysiology: boolean };
-    stats: {
-      weeklyDistance: number;
-      weeklyDuration: string | null;
-      activitiesCount: number;
-      lastActivityDate: Date | null; // On autorise Date | null
-      lastActivity: any | null;
-      physio: { 
-        ftp: number | null; 
-        restingHr: number | null; 
-        maxHr: number | null; 
-        weight: number | null; 
-        state: string; 
-        stateMessage: string | null; 
-      } | null; // On autorise l'objet physioData | null
-    };
-  }> {
+  private async verifyCoachAccess(coachId: string, athleteId: string) {
     const link = await this.prisma.coachingLink.findUnique({
       where: { coachId_athleteId: { coachId, athleteId } },
       include: { athlete: { select: { id: true, email: true } } }
     });
 
     if (!link || link.status !== 'ACTIVE') {
-      throw new ForbiddenException("Accès non autorisé.");
+      throw new ForbiddenException("Accès non autorisé à cet athlète.");
     }
-
-    const startOfWeek = new Date();
-    startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1));
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    let weeklyDistance = 0;
-    let lastActivityDate: Date | null = null;
-    let physioData: { ftp: number | null; restingHr: number | null; maxHr: number | null; weight: number | null; state: string; stateMessage: string | null } | null = null;
-
-    if (link.shareActivities) {
-      const weeklyActivities = await this.prisma.activity.findMany({
-        where: { userId: athleteId, startDate: { gte: startOfWeek }, idUpload: { not: null } },
-        include: { uploadDetail: true }
-      });
-      weeklyDistance = weeklyActivities.reduce((acc, curr) => acc + (curr.uploadDetail?.distance || 0), 0);
-
-      const lastActivity = await this.prisma.activity.findFirst({
-        where: { userId: athleteId, idUpload: { not: null } },
-        orderBy: { startDate: 'desc' },
-        select: { startDate: true }
-      });
-      lastActivityDate = lastActivity?.startDate || null;
-    }
-
-    if (link.sharePhysiology) {
-      const physio = await this.prisma.userPhysiology.findUnique({
-        where: { userId: athleteId }
-      });
-      if (physio) {
-        physioData = {
-          ftp: physio.ftp,
-          restingHr: physio.restingHr,
-          maxHr: physio.maxHr,
-          weight: physio.weight,
-          state: physio.state,
-          stateMessage: null 
-        };
-      }
-    }
-
-    return {
-      athlete: link.athlete,
-      permissions: {
-        shareActivities: link.shareActivities,
-        sharePhysiology: link.sharePhysiology,
-      },
-      stats: {
-        weeklyDistance: parseFloat(weeklyDistance.toFixed(1)),
-        weeklyDuration: null,
-        activitiesCount: 0,
-        lastActivityDate,
-        lastActivity: null,
-        physio: physioData
-      }
-    };
+    return link;
   }
+
+  // ==========================================
+  // 1. DONNÉES GLOBALES (Overview)
+  // ==========================================
+  async getAthleteOverview(coachId: string, athleteId: string) {
+  const link = await this.verifyCoachAccess(coachId, athleteId);
+
+  const now = new Date();
+  const startOfWeek = new Date();
+  startOfWeek.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  // 1. DÉCLARATION DES VARIABLES
+  let weeklyStats = { distance: 0, duration: 0, count: 0 };
+  let recentActivities: any[] | null = null;
+  let upcomingPlanning: any[] | null = null;
+  let physio: any | null = null;
+  let objectives: any[] | null = null;
+
+  // A. Activités (Stats et 7 derniers jours - basé uniquement sur uploadDetail)
+  if (link.shareActivities) {
+    const activities = await this.prisma.activity.findMany({
+      where: { 
+        userId: athleteId, 
+        startDate: { gte: sevenDaysAgo },
+        uploadDetail: { isNot: null } // On s'assure qu'il y a un upload
+      },
+      include: { uploadDetail: true },
+      orderBy: { startDate: 'desc' }
+    });
+
+    recentActivities = activities.map(act => {
+      // Distance est en km via uploadDetail
+      const distance = act.uploadDetail?.distance ?? 0;
+      // Note: Assurez-vous d'avoir la durée dans UploadActivity 
+      // ou ajustez la logique si elle est stockée ailleurs
+      const duration = 0; 
+      
+      return {
+        id: act.id,
+        title: 'Activité uploadée',
+        date: act.startDate,
+        distance,
+        duration,
+      };
+    });
+
+    const thisWeekActivities = recentActivities.filter(act => new Date(act.date) >= startOfWeek);
+    
+    weeklyStats = {
+      distance: parseFloat(thisWeekActivities.reduce((acc, curr) => acc + curr.distance, 0).toFixed(1)),
+      duration: thisWeekActivities.reduce((acc, curr) => acc + curr.duration, 0),
+      count: thisWeekActivities.length
+    };
+
+    // Planning à venir (3 prochains)
+    upcomingPlanning = await this.prisma.plannedWorkout.findMany({
+      where: { userId: athleteId, startDate: { gte: now } },
+      take: 3,
+      orderBy: { startDate: 'asc' }
+    });
+  }
+
+  // B. Physiologie
+  if (link.sharePhysiology) {
+    physio = await this.prisma.userPhysiology.findUnique({
+      where: { userId: athleteId },
+      select: { ftp: true, restingHr: true, maxHr: true, weight: true, height: true, state: true }
+    });
+  }
+
+  // C. Objectifs (3 prochains objectifs actifs)
+  if (link.shareObjectives) {
+    objectives = await this.prisma.goal.findMany({
+      where: { userId: athleteId, isActive: true, endDate: { gte: now } },
+      include: { targets: { include: { metric: true } } },
+      take: 3,
+      orderBy: { endDate: 'asc' }
+    });
+  }
+
+  return {
+    athlete: link.athlete,
+    permissions: {
+      shareActivities: link.shareActivities,
+      sharePhysiology: link.sharePhysiology,
+      shareObjectives: link.shareObjectives,
+      shareAnalytics: link.shareAnalytics,
+      shareRecords: link.shareRecords,
+    },
+    weeklyStats,
+    recentActivities,
+    upcomingPlanning,
+    physio,
+    objectives,
+  };
+}
+
+  // ==========================================
+  // 2. PROFIL PHYSIO COMPLET
+  // ==========================================
+  async getAthletePhysio(coachId: string, athleteId: string) {
+    const link = await this.verifyCoachAccess(coachId, athleteId);
+
+    if (!link.sharePhysiology) {
+      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses données physiologiques.");
+    }
+
+    // Profil de base
+    const physio = await this.prisma.userPhysiology.findUnique({
+      where: { userId: athleteId }
+    });
+
+    // Historique des performances physiologiques (ex: évolution du FTP, Poids, etc.)
+    const physioHistory = await this.prisma.performanceStats.findMany({
+      where: { userId: athleteId },
+      orderBy: { periodStart: 'desc' },
+      take: 12 // Par exemple les 12 dernières périodes
+    });
+
+    return { physio, history: physioHistory };
+  }
+
+  // ==========================================
+  // 3. ANALYSE POUSSÉE (Performance & Computed Metrics)
+  // ==========================================
+  async getAthleteAnalytics(coachId: string, athleteId: string) {
+    const link = await this.verifyCoachAccess(coachId, athleteId);
+
+    if (!link.shareAnalytics) {
+      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses analyses poussées.");
+    }
+
+    // Récupération des records de puissance et stats d'analyse
+    const performanceStats = await this.prisma.performanceStats.findMany({
+      where: { userId: athleteId },
+      orderBy: { periodStart: 'asc' }
+    });
+
+    const computedMetrics = await this.prisma.computedMetric.findMany({
+      where: { userId: athleteId },
+      include: { metric: true }
+    });
+
+    return { performanceStats, computedMetrics };
+  }
+
+  // ==========================================
+  // 4. OBJECTIFS
+  // ==========================================
+  async getAthleteObjectives(coachId: string, athleteId: string) {
+    const link = await this.verifyCoachAccess(coachId, athleteId);
+
+    if (!link.shareObjectives) {
+      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses objectifs.");
+    }
+
+    const goals = await this.prisma.goal.findMany({
+      where: { userId: athleteId },
+      include: { 
+        targets: { 
+          include: { metric: true } 
+        } 
+      },
+      orderBy: { endDate: 'asc' }
+    });
+
+    return goals;
+  }
+
+  // ==========================================
+  // 5. RECORDS (PRs)
+  // ==========================================
+  async getAthleteRecords(coachId: string, athleteId: string) {
+    const link = await this.verifyCoachAccess(coachId, athleteId);
+
+    if (!link.shareRecords) {
+      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses records.");
+    }
+
+    const records = await this.prisma.personalRecord.findMany({
+      where: { userId: athleteId },
+      include: { metric: true }, // Permet de récupérer l'unité et le nom du record
+      orderBy: { achievedAt: 'desc' }
+    });
+
+    return records;
+  }
+
+  // ==========================================
+  // 6. HISTORIQUE DES ACTIVITÉS COMPLET (Paginé)
+  // ==========================================
+  async getAthleteActivities(coachId: string, athleteId: string, page: number = 1, limit: number = 20) {
+  const link = await this.verifyCoachAccess(coachId, athleteId);
+
+  if (!link.shareActivities) {
+    throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses activités.");
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [activities, total] = await this.prisma.$transaction([
+    this.prisma.activity.findMany({
+      where: { 
+        userId: athleteId,
+        uploadDetail: { isNot: null } 
+      },
+      include: { uploadDetail: true }, 
+      orderBy: { startDate: 'desc' },
+      skip,
+      take: limit,
+    }),
+    this.prisma.activity.count({
+      where: { userId: athleteId, uploadDetail: { isNot: null } }
+    })
+  ]);
+
+  const formattedActivities = activities.map(act => ({
+    id: act.id,
+    startDate: act.startDate,
+    source: 'UPLOAD', 
+    title: 'Activité manuelle', 
+    distance: act.uploadDetail?.distance ?? 0,
+    elevation: act.uploadDetail?.elevation ?? 0,
+    duration: null, 
+    avgWatts: null,
+    maxWatts: null,
+    avgHeartrate: null
+  }));
+
+  return {
+    data: formattedActivities,
+    meta: { total, page, limit, totalPages: Math.ceil(total / limit) }
+  };
+}
+
+  // ==========================================
+  // 7. PLANNING (Entraînements à venir et passés)
+  // ==========================================
+async getAthletePlanning(coachId: string, athleteId: string) {
+  const link = await this.verifyCoachAccess(coachId, athleteId);
+
+  if (!link.shareActivities) {
+    throw new ForbiddenException("L'athlète n'a pas autorisé l'accès à son planning.");
+  }
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30); 
+
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 90); 
+
+  return await this.prisma.plannedWorkout.findMany({
+    where: { 
+      userId: athleteId,
+      startDate: { 
+        gte: startDate,
+        lte: endDate 
+      } 
+    },
+    orderBy: { startDate: 'asc' }
+  });
+}
 }

@@ -63,8 +63,38 @@ export class CoachingController {
     return this.coachingService.getAthletesSummary(req.user.sub);
   }
 
-  @Get('athletes/:id')
-  async getAthleteDetails(@Req() req, @Param('id') athleteId: string) {
-    return this.coachingService.getAthleteDetails(req.user.sub, athleteId);
+  @Get('athletes/:id/overview')
+  async getAthleteOverview(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthleteOverview(req.user.sub, athleteId);
+  }
+
+  @Get('athletes/:id/physio')
+  async getAthletePhysio(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthletePhysio(req.user.sub, athleteId);
+  }
+
+  @Get('athletes/:id/analytics')
+  async getAthleteAnalytics(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthleteAnalytics(req.user.sub, athleteId);
+  }
+
+  @Get('athletes/:id/objectives')
+  async getAthleteObjectives(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthleteObjectives(req.user.sub, athleteId);
+  }
+
+  @Get('athletes/:id/records')
+  async getAthleteRecords(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthleteRecords(req.user.sub, athleteId);
+  }
+
+  @Get('athletes/:id/activities')
+  async getAthleteActivities(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthleteActivities(req.user.sub, athleteId);
+  }
+
+  @Get('athletes/:id/planning')
+  async getAthletePlanning(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthletePlanning(req.user.sub, athleteId);
   }
 }

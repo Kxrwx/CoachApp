@@ -1,106 +1,341 @@
 "use client";
 
-import React from 'react';
-import { Calendar as CalendarIcon, Plus, CheckCircle2, CircleDashed, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
+import { useParams } from "next/navigation";
+import { api } from "@/lib/api";
 
 export default function AthletePlanningPage() {
   const { id } = useParams();
 
-  // Structure fictive d'une semaine d'entraînement
-  const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-  
-  const workouts = [
-    { day: 0, title: "Récupération active", duration: "45 min", type: "Bike", status: "completed" },
-    { day: 2, title: "Intervalles PMA (5x3')", duration: "1h 15", type: "Bike", status: "missed" },
-    { day: 4, title: "Endurance fondamentale", duration: "2h 00", type: "Bike", status: "planned" },
-    { day: 6, title: "Sortie Longue", duration: "4h 00", type: "Bike", status: "planned" },
-  ];
+  const [workouts, setWorkouts] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [selectedWorkout, setSelectedWorkout] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  // Fenêtre d'affichage : J-30 -> J+30
+  const minDate = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 30);
+    return d;
+  }, [today]);
+
+  const maxDate = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + 30);
+    return d;
+  }, [today]);
+
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // lundi
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        const [planningRes, activitiesRes] = await Promise.all([
+          api(`/coaching/athletes/${id}/planning`),
+          api(`/coaching/athletes/${id}/activities`),
+        ]);
+
+        // WORKOUTS : J-30 -> J+30
+        if (planningRes.ok) {
+          const planning = await planningRes.json();
+
+          const filteredPlanning = planning.filter((w: any) => {
+            const date = new Date(w.startDate);
+            return date >= minDate && date <= maxDate;
+          });
+
+          setWorkouts(filteredPlanning);
+        }
+
+        // ACTIVITES : J-30 -> J0 uniquement
+        if (activitiesRes.ok) {
+          const activitiesData = await activitiesRes.json();
+
+          const filteredActivities = activitiesData.data.filter((a: any) => {
+            const date = new Date(a.startDate);
+            return date >= minDate && date <= today;
+          });
+
+          setActivities(filteredActivities);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, today, minDate, maxDate]);
+
+  const weekDates = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const changeWeek = (direction: number) => {
+    const next = new Date(currentWeekStart);
+    next.setDate(next.getDate() + direction * 7);
+
+    const weekEnd = new Date(next);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    if (weekEnd < minDate) return;
+    if (next > maxDate) return;
+
+    setCurrentWeekStart(next);
+  };
+
+  const isToday = (date: Date) =>
+    date.toDateString() === today.toDateString();
+
+  const isWithinBounds = (date: Date) =>
+    date >= minDate && date <= maxDate;
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        <div className="animate-pulse text-slate-500">
+          Chargement du planning...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      
-      {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <CalendarIcon className="text-indigo-600" size={20} />
-            Planning Hebdomadaire
-          </h2>
-          
-          {/* Navigation Semaines */}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
-            <button className="p-1 hover:bg-slate-100 rounded text-slate-500 transition-colors"><ChevronLeft size={16}/></button>
-            <span className="text-xs font-bold px-2 text-slate-700">Cette semaine</span>
-            <button className="p-1 hover:bg-slate-100 rounded text-slate-500 transition-colors"><ChevronRight size={16}/></button>
-          </div>
-        </div>
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <CalendarIcon className="text-indigo-600" />
+          Planning & Activités
+        </h2>
 
-        <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-sm flex items-center gap-2 transition-colors shadow-md shadow-indigo-200 shrink-0">
-          <Plus size={16} /> Ajouter une séance
-        </button>
+        <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+          <button
+            onClick={() => changeWeek(-1)}
+            className="p-2 hover:bg-slate-50 rounded-lg"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <span className="px-4 text-sm font-bold text-slate-700">
+            {weekDates[0].toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "short",
+            })}
+            {" → "}
+            {weekDates[6].toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "short",
+            })}
+          </span>
+
+          <button
+            onClick={() => changeWeek(1)}
+            className="p-2 hover:bg-slate-50 rounded-lg"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
       </div>
 
-      {/* Calendrier (Vue Semaine) */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
-          {weekDays.map((day, idx) => (
-            <div key={day} className={`p-3 text-center border-r last:border-r-0 border-slate-100 ${idx === 3 ? 'bg-indigo-50/30' : ''}`}>
-              <span className={`text-[10px] font-black uppercase tracking-wider ${idx === 3 ? 'text-indigo-600' : 'text-slate-400'}`}>
-                {day}
-              </span>
-              <div className={`text-sm font-bold mt-0.5 ${idx === 3 ? 'text-indigo-900' : 'text-slate-700'}`}>
-                {idx + 1} Juin
-              </div>
+      {/* LEGENDE */}
+      <div className="flex flex-wrap gap-3 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-indigo-500" />
+          <span className="text-slate-600">Workout planifié</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-emerald-500" />
+          <span className="text-slate-600">Activité réalisée</span>
+        </div>
+      </div>
+
+      {/* CALENDAR */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
+          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => (
+            <div
+              key={day}
+              className="p-4 text-center font-bold text-[10px] uppercase text-slate-400"
+            >
+              {day}
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 min-h-[400px]">
-          {weekDays.map((_, dayIdx) => {
-            const dayWorkouts = workouts.filter(w => w.day === dayIdx);
-            
+        <div className="grid grid-cols-7 min-h-[600px]">
+          {weekDates.map((date) => {
+            const dayWorkouts = workouts.filter(
+              (w) =>
+                new Date(w.startDate).toDateString() === date.toDateString()
+            );
+
+            const dayActivities = activities.filter(
+              (a) =>
+                new Date(a.startDate).toDateString() === date.toDateString()
+            );
+
             return (
-              <div key={dayIdx} className={`border-r last:border-r-0 border-slate-100 p-2 ${dayIdx === 3 ? 'bg-indigo-50/10' : ''}`}>
-                {dayWorkouts.map((workout, wIdx) => (
-                  <div 
-                    key={wIdx} 
-                    className={`p-3 rounded-xl border text-left mb-2 cursor-pointer hover:shadow-md transition-all group ${
-                      workout.status === 'completed' ? 'bg-emerald-50 border-emerald-200' :
-                      workout.status === 'missed' ? 'bg-rose-50 border-rose-200' :
-                      'bg-white border-slate-200'
-                    }`}
+              <div
+                key={date.toISOString()}
+                className={`border-r border-slate-100 last:border-r-0 p-2 ${
+                  !isWithinBounds(date) ? "bg-slate-50/50" : ""
+                }`}
+              >
+                <div
+                  className={`mb-3 text-center text-sm font-bold ${
+                    isToday(date)
+                      ? "text-indigo-600"
+                      : "text-slate-700"
+                  }`}
+                >
+                  {date.getDate()}
+                </div>
+
+                {/* ACTIVITES (J-30 -> J0) */}
+                {dayActivities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="mb-2 p-2 rounded-xl bg-emerald-50 border border-emerald-200"
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      {workout.status === 'completed' && <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />}
-                      {workout.status === 'planned' && <CircleDashed size={16} className="text-slate-300 shrink-0" />}
-                      {workout.status === 'missed' && <div className="h-4 w-4 rounded-full border-2 border-rose-400 shrink-0 flex items-center justify-center"><div className="h-1.5 w-1.5 bg-rose-400 rounded-full" /></div>}
-                      
-                      <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-white/50 px-1.5 py-0.5 rounded">
-                        <Clock size={10} /> {workout.duration}
-                      </div>
+                    <div className="flex items-center gap-1 text-emerald-700 text-[10px] font-bold">
+                      <CheckCircle2 size={11} />
+                      Activité
                     </div>
-                    
-                    <h4 className={`text-xs font-bold leading-tight ${
-                      workout.status === 'completed' ? 'text-emerald-900' :
-                      workout.status === 'missed' ? 'text-rose-900' :
-                      'text-slate-800'
-                    }`}>
-                      {workout.title}
-                    </h4>
+
+                    <div className="mt-1 text-[10px] text-slate-600">
+                      {activity.distance
+                        ? `${activity.distance.toFixed(1)} km`
+                        : "-"}
+                    </div>
+
+                    {activity.elevation > 0 && (
+                      <div className="text-[9px] text-slate-500">
+                        D+ {Math.round(activity.elevation)} m
+                      </div>
+                    )}
                   </div>
                 ))}
 
-                {/* Zone de drop vide / Ajouter rapide */}
-                <div className="h-full min-h-[60px] rounded-xl border-2 border-dashed border-transparent hover:border-slate-200 flex items-center justify-center opacity-0 hover:opacity-100 transition-all cursor-pointer">
-                  <Plus size={16} className="text-slate-300" />
-                </div>
+                {/* WORKOUTS (J-30 -> J+30) */}
+                {dayWorkouts.map((workout) => (
+                  <div
+                    key={workout.id}
+                    onClick={() => setSelectedWorkout(workout)}
+                    className="mb-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer hover:border-indigo-300 transition-all border-l-4"
+                    style={{
+                      borderLeftColor:
+                        workout.color || "#6366f1",
+                    }}
+                  >
+                    <p className="text-[10px] font-bold text-slate-800 truncate">
+                      {workout.title}
+                    </p>
+
+                    <div className="mt-1 flex items-center gap-2 text-[9px] text-slate-500">
+                      {workout.duration && (
+                        <>
+                          <Clock size={9} />
+                          {workout.duration} min
+                        </>
+                      )}
+
+                      <span>{workout.type}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           })}
         </div>
       </div>
-      
+
+      {/* MODAL */}
+      {selectedWorkout && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-8 shadow-2xl">
+            <h2 className="text-2xl font-black text-slate-900 mb-6">
+              {selectedWorkout.title}
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                {
+                  label: "Type",
+                  value: selectedWorkout.type,
+                },
+                {
+                  label: "Durée",
+                  value: selectedWorkout.duration
+                    ? `${selectedWorkout.duration} min`
+                    : "-",
+                },
+                {
+                  label: "Intensité",
+                  value: selectedWorkout.intensity || "-",
+                },
+                {
+                  label: "Status",
+                  value: selectedWorkout.status || "-",
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="bg-slate-50 rounded-xl p-3"
+                >
+                  <div className="text-[9px] uppercase font-bold text-slate-400">
+                    {item.label}
+                  </div>
+
+                  <div className="text-sm font-bold text-slate-700">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 p-4 bg-slate-50 rounded-xl text-sm text-slate-600">
+              {selectedWorkout.description ||
+                "Aucune description"}
+            </div>
+
+            <button
+              onClick={() => setSelectedWorkout(null)}
+              className="mt-6 w-full py-3 rounded-xl bg-slate-900 text-white font-bold"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { 
   Activity, Heart, Flame, Scale, TrendingUp, 
   AlertCircle, BatteryWarning, CheckCircle2, ActivitySquare,
-  ArrowUpRight, ChevronRight, Calendar, Target, Loader2
+  ArrowUpRight, ChevronRight, Calendar, Target, Loader2, Clock, MapPin
 } from 'lucide-react';
 
 interface PhysioData {
@@ -18,7 +18,8 @@ interface PhysioData {
   weight: number | null;
 }
 
-interface AthleteDetails {
+// Nouvelle structure correspondant à getAthleteOverview
+interface AthleteOverviewData {
   athlete: {
     id: string;
     email: string;
@@ -26,34 +27,57 @@ interface AthleteDetails {
   permissions: {
     shareActivities: boolean;
     sharePhysiology: boolean;
+    shareObjectives: boolean;
+    shareAnalytics: boolean;
+    shareRecords: boolean;
   };
-  stats: {
-    weeklyDistance: number | null;
-    weeklyDuration?: string | null;
-    activitiesCount?: number | null;
-    lastActivityDate: string | null; 
-    lastActivity?: {
-      title: string;
-      distance: number;
-      duration: string;
-      date: string;
-    } | null;
-    physio: PhysioData | null; 
+  weeklyStats: {
+    distance: number;
+    duration: number; // En secondes, on le formatera
+    count: number;
   };
+  recentActivities: {
+    id: string;
+    title: string;
+    date: string;
+    distance: number;
+    duration: number;
+  }[] | null;
+  upcomingPlanning: {
+    id: string;
+    title: string;
+    startDate: string;
+    type: string;
+  }[] | null;
+  physio: PhysioData | null;
+  objectives: {
+    id: string;
+    name: string;
+    endDate: string;
+    isActive: boolean;
+  }[] | null;
 }
+
+// Fonction utilitaire pour formater les secondes en HH:MM
+const formatDuration = (seconds: number) => {
+  if (!seconds) return '--';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}`;
+  return `${m} min`;
+};
 
 export default function AthleteOverviewPage() {
   const { id } = useParams();
   const router = useRouter();
   
-  const [data, setData] = useState<AthleteDetails | null>(null);
+  const [data, setData] = useState<AthleteOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchOverview = async () => {
       try {
-        // Route API pour récupérer les données complètes de cet athlète précis
-        const res = await api(`/coaching/athletes/${id}`);
+        const res = await api(`/coaching/athletes/${id}/overview`);
         if (res.ok) {
           const resData = await res.json();
           setData(resData);
@@ -84,8 +108,9 @@ export default function AthleteOverviewPage() {
     );
   }
 
-  const { stats, permissions } = data;
-  const physio = stats.physio;
+  const { weeklyStats, permissions, physio, recentActivities, upcomingPlanning, objectives } = data;
+  const lastActivity = recentActivities && recentActivities.length > 0 ? recentActivities[0] : null;
+  const nextObjective = objectives && objectives.length > 0 ? objectives[0] : null;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
@@ -153,23 +178,23 @@ export default function AthleteOverviewPage() {
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/50">
                 <p className="text-xs font-semibold text-slate-400">Distance hebdo</p>
                 <p className="text-2xl font-black text-slate-900 mt-1">
-                  {stats.weeklyDistance ?? 0} <span className="text-xs font-bold text-slate-400">km</span>
+                  {weeklyStats?.distance ?? 0} <span className="text-xs font-bold text-slate-400">km</span>
                 </p>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/50">
                 <p className="text-xs font-semibold text-slate-400">Temps total</p>
-                <p className="text-2xl font-black text-slate-900 mt-1">{stats.weeklyDuration || '--'}</p>
+                <p className="text-2xl font-black text-slate-900 mt-1">{formatDuration(weeklyStats?.duration || 0)}</p>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100/50">
                 <p className="text-xs font-semibold text-slate-400">Séances réalisées</p>
-                <p className="text-2xl font-black text-slate-900 mt-1">{stats.activitiesCount || 0}</p>
+                <p className="text-2xl font-black text-slate-900 mt-1">{weeklyStats?.count || 0}</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Dernière Activité Enregistrée */}
-        {permissions.shareActivities && (stats.lastActivity || stats.lastActivityDate) && (
+        {permissions.shareActivities && lastActivity && (
           <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Dernière activité synchronisée</h2>
             
@@ -180,10 +205,11 @@ export default function AthleteOverviewPage() {
                 </div>
                 <div className="min-w-0">
                   <h4 className="font-bold text-slate-900 text-sm truncate">
-                    {stats.lastActivity?.title || "Activité Strava"}
+                    {lastActivity.title}
                   </h4>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Le {stats.lastActivityDate ? new Date(stats.lastActivityDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '--'}
+                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                    <Clock size={12}/>
+                    {new Date(lastActivity.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>
@@ -191,14 +217,12 @@ export default function AthleteOverviewPage() {
               <div className="flex items-center gap-6 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-50 shrink-0">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Distance</p>
-                  <p className="text-sm font-bold text-slate-800">{stats.lastActivity?.distance ?? stats.weeklyDistance ?? '--'} km</p>
+                  <p className="text-sm font-bold text-slate-800">{lastActivity.distance.toFixed(1)} km</p>
                 </div>
-                {stats.lastActivity?.duration && (
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Durée</p>
-                    <p className="text-sm font-bold text-slate-800">{stats.lastActivity.duration}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Durée</p>
+                  <p className="text-sm font-bold text-slate-800">{formatDuration(lastActivity.duration)}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -264,6 +288,23 @@ export default function AthleteOverviewPage() {
           )}
         </div>
 
+        {/* Prochain Objectif */}
+        {permissions.shareObjectives && nextObjective && (
+          <div className="bg-indigo-600 rounded-2xl border border-indigo-500 p-6 shadow-sm text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Target size={64} />
+            </div>
+            <h2 className="text-xs font-black uppercase tracking-widest text-indigo-200 mb-4 relative z-10">Prochain Objectif</h2>
+            <div className="relative z-10">
+               <h3 className="text-lg font-bold truncate">{nextObjective.name}</h3>
+               <p className="text-sm text-indigo-100 mt-1 flex items-center gap-1.5">
+                 <Calendar size={14} /> 
+                 {new Date(nextObjective.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+               </p>
+            </div>
+          </div>
+        )}
+
         {/* Menu de navigation rapide interne */}
         <div className="bg-white rounded-2xl border border-slate-100 p-3 shadow-sm space-y-1">
           <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3 py-1 mb-1">Raccourcis</h3>
@@ -278,13 +319,15 @@ export default function AthleteOverviewPage() {
             </button>
           )}
 
-          <button 
-            onClick={() => router.push(`/athletes/${id}/goals`)}
-            className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors group"
-          >
-            <span className="flex items-center gap-2.5"><Target size={14} className="text-slate-400" /> Suivre les Objectifs</span>
-            <ChevronRight size={14} className="text-slate-300 group-hover:translate-x-0.5 transition-transform" />
-          </button>
+          {permissions.shareObjectives && (
+            <button 
+              onClick={() => router.push(`/athletes/${id}/goals`)}
+              className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors group"
+            >
+              <span className="flex items-center gap-2.5"><Target size={14} className="text-slate-400" /> Suivre les Objectifs</span>
+              <ChevronRight size={14} className="text-slate-300 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          )}
         </div>
 
       </div>
