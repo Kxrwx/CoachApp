@@ -2,9 +2,13 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
 
+
+
 @Injectable()
 export class CoachingService {
   constructor(private prisma: PrismaService) {}
+
+  
 
   // ==========================================
   // 1. GÉNÉRER UNE INVITATION (Réservé au Coach)
@@ -290,5 +294,89 @@ export class CoachingService {
     }));
 
     return athletesSummary;
+  }
+
+  async getAthleteDetails(coachId: string, athleteId: string): Promise<{
+    athlete: { id: string; email: string };
+    permissions: { shareActivities: boolean; sharePhysiology: boolean };
+    stats: {
+      weeklyDistance: number;
+      weeklyDuration: string | null;
+      activitiesCount: number;
+      lastActivityDate: Date | null; // On autorise Date | null
+      lastActivity: any | null;
+      physio: { 
+        ftp: number | null; 
+        restingHr: number | null; 
+        maxHr: number | null; 
+        weight: number | null; 
+        state: string; 
+        stateMessage: string | null; 
+      } | null; // On autorise l'objet physioData | null
+    };
+  }> {
+    const link = await this.prisma.coachingLink.findUnique({
+      where: { coachId_athleteId: { coachId, athleteId } },
+      include: { athlete: { select: { id: true, email: true } } }
+    });
+
+    if (!link || link.status !== 'ACTIVE') {
+      throw new ForbiddenException("Accès non autorisé.");
+    }
+
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1));
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    let weeklyDistance = 0;
+    let lastActivityDate: Date | null = null;
+    let physioData: { ftp: number | null; restingHr: number | null; maxHr: number | null; weight: number | null; state: string; stateMessage: string | null } | null = null;
+
+    if (link.shareActivities) {
+      const weeklyActivities = await this.prisma.activity.findMany({
+        where: { userId: athleteId, startDate: { gte: startOfWeek }, idUpload: { not: null } },
+        include: { uploadDetail: true }
+      });
+      weeklyDistance = weeklyActivities.reduce((acc, curr) => acc + (curr.uploadDetail?.distance || 0), 0);
+
+      const lastActivity = await this.prisma.activity.findFirst({
+        where: { userId: athleteId, idUpload: { not: null } },
+        orderBy: { startDate: 'desc' },
+        select: { startDate: true }
+      });
+      lastActivityDate = lastActivity?.startDate || null;
+    }
+
+    if (link.sharePhysiology) {
+      const physio = await this.prisma.userPhysiology.findUnique({
+        where: { userId: athleteId }
+      });
+      if (physio) {
+        physioData = {
+          ftp: physio.ftp,
+          restingHr: physio.restingHr,
+          maxHr: physio.maxHr,
+          weight: physio.weight,
+          state: physio.state,
+          stateMessage: null 
+        };
+      }
+    }
+
+    return {
+      athlete: link.athlete,
+      permissions: {
+        shareActivities: link.shareActivities,
+        sharePhysiology: link.sharePhysiology,
+      },
+      stats: {
+        weeklyDistance: parseFloat(weeklyDistance.toFixed(1)),
+        weeklyDuration: null,
+        activitiesCount: 0,
+        lastActivityDate,
+        lastActivity: null,
+        physio: physioData
+      }
+    };
   }
 }

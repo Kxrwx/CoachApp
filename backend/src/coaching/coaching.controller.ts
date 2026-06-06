@@ -60,7 +60,11 @@ export class CoachingController {
 
   @Get('my-athletes-summary')
   async getAthletesSummary(@Req() req: any) {
-    // req.user.sub contient l'ID du coach
     return this.coachingService.getAthletesSummary(req.user.sub);
+  }
+
+  @Get('athletes/:id')
+  async getAthleteDetails(@Req() req, @Param('id') athleteId: string) {
+    return this.coachingService.getAthleteDetails(req.user.sub, athleteId);
   }
 }
