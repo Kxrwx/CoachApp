@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronLeft, BarChart3, Calendar, Target, User } from 'lucide-react';
+import { ChevronLeft, BarChart3, Calendar, Target, User, FileCode } from 'lucide-react';
 
 interface AthleteHeaderProps {
   id: string;
@@ -17,11 +17,12 @@ export default function AthleteHeader({ id, athlete, permissions, allAthletes }:
   const router = useRouter();
 
   const tabs = [
-    { name: 'Vue Globale', href: `/athletes/${id}`, icon: User, allowed: true },
-    { name: 'Données / Data', href: `/athletes/${id}/data`, icon: BarChart3, allowed: permissions.shareActivities },
-    { name: 'Planning', href: `/athletes/${id}/planning`, icon: Calendar, allowed: permissions.shareActivities },
-    { name: 'Objectifs', href: `/athletes/${id}/goals`, icon: Target, allowed: true },
-  ];
+  { name: 'Vue Globale', href: `/athletes/${id}`, icon: User, allowed: true },
+  { name: 'Données / Data', href: `/athletes/${id}/data`, icon: BarChart3, allowed: permissions.shareActivities },
+  { name: 'Activités', href: `/athletes/${id}/activities`, icon: FileCode, allowed: permissions.shareActivities }, // Ajouté ici
+  { name: 'Planning', href: `/athletes/${id}/planning`, icon: Calendar, allowed: permissions.shareActivities },
+  { name: 'Objectifs', href: `/athletes/${id}/goals`, icon: Target, allowed: true },
+];
 
   return (
     <>
