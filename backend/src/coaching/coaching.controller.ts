@@ -57,7 +57,8 @@ export class CoachingController {
   ) {
     return this.coachingService.updatePermissions(id, req.user.sub, body);
   }
-  // Peut etre a revoir car uniquement pour l'overlay du coach sur tout les athletes
+
+
   @Get('my-athletes-summary')
   async getAthletesSummary(@Req() req: any) {
     return this.coachingService.getAthletesSummary(req.user.sub);
@@ -106,4 +107,14 @@ async getAthleteActivity(
 ) {
   return this.coachingService.getAthleteActivityDetail(req.user.sub, athleteId, activityId);
 }
+
+@Post('athletes/:id/training-proposal')
+  async proposeTraining(
+    @Req() req,
+    @Param('id') athleteId: string,
+    @Body() body: { title: string; scheduledDate: string; activityType: string; description?: string }
+  ) {
+    const coachId = req.user.sub;
+    return this.coachingService.proposeTrainingSession(coachId, athleteId, body);
+  }
 }

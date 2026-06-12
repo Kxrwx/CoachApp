@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
-
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { randomBytes } from 'crypto';
 
 const FitParser = require('fit-file-parser').default;
@@ -26,7 +26,7 @@ interface WeeklyBucket {
 export class CoachingService {
 
   private readonly logger = new Logger(CoachingService.name);
-  constructor(private prisma: PrismaService, private r2Service: R2Service) {}
+  constructor(private prisma: PrismaService, private r2Service: R2Service, private notificationGateway: NotificationsGateway) {}
 
     private async parseFitBuffer(
   buffer: Buffer,
@@ -947,6 +947,69 @@ async getAthleteActivityDetail(coachId: string, athleteId: string, activityId: s
     },
     decodedFileData, // Contient les courbes/détails du FIT
   };
+}
+
+async proposeTrainingSession(
+  coachId: string, 
+  athleteId: string, 
+  data: { 
+    title: string; 
+    scheduledDate: string; 
+    activityType: string; 
+    description?: string;
+    // Nouveaux champs ajoutés ici
+    startTime?: string;
+    duration?: number;
+    isRecurring?: boolean;
+    recurrenceRule?: string;
+    color?: string;
+  }
+) {
+  try {
+    // Vérification des accès
+    await this.verifyCoachAccess(coachId, athleteId);
+
+    // Création de l'action en attente avec le payload complet
+    const pendingAction = await this.prisma.pendingAction.create({
+      data: {
+        userId: athleteId,
+        type: 'TRAINING_PROPOSAL',
+        payload: {
+          coachId, 
+          title: data.title,
+          description: data.description || null,
+          scheduledDate: data.scheduledDate,
+          activityType: data.activityType,
+          startTime: data.startTime || null,
+          duration: data.duration || null,
+          isRecurring: data.isRecurring || false,
+          recurrenceRule: data.recurrenceRule || null,
+          color: data.color || "#6366f1",
+        },
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
+      }
+    });
+
+    this.logger.log(`[Pending System] Coach ${coachId} a proposé une séance à l'athlète ${athleteId}`);
+
+    // Notification temps réel
+    this.notificationGateway.sendToUser(athleteId, 'NEW_PENDING_ACTION', {
+      type: 'TRAINING_PROPOSAL',
+      actionId: pendingAction.id,
+      title: "Nouvelle proposition d'entraînement"
+    });
+
+    return { 
+      success: true, 
+      message: "Proposition envoyée à l'athlète", 
+      action: pendingAction 
+    };
+
+  } catch (error) {
+    this.logger.error(`[Pending System] Erreur lors de la proposition d'entraînement :`, error);
+    throw error; 
+  }
 }
 
 

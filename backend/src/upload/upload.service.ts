@@ -293,20 +293,16 @@ export class UploadService {
     }
   }
 
-  /**
-   * Vérifie si les nouvelles métriques battent les records physio actuels
-   * et crée une notification "PendingAction" si c'est le cas.
-   */
+
 private async checkAndProposePhysioUpdates(userId: string, activityId: string, metrics: Record<string, number>) {
     try {
       const currentPhysio = await this.prisma.userPhysiology.findUnique({ where: { userId } });
       const actionsToCreate: Array<{ type: PendingActionType; payload: any }> = [];
 
       const maxHr = metrics['hr_max'];
-      const w20min = metrics['w20min']; // Assure-toi que cette métrique est bien extraite si tu veux estimer la FTP
+      const w20min = metrics['w20min']; 
       const estimatedFtp = w20min ? round(w20min * 0.95) : null;
 
-      // 1. Test FC Max
       if (maxHr && (!currentPhysio?.maxHr || maxHr > currentPhysio.maxHr)) {
         actionsToCreate.push({
           type: 'PHYSIOLOGY_UPDATE',
@@ -314,7 +310,7 @@ private async checkAndProposePhysioUpdates(userId: string, activityId: string, m
         });
       }
 
-      // 2. Test FTP
+
       if (estimatedFtp && (!currentPhysio?.ftp || estimatedFtp > currentPhysio.ftp)) {
         actionsToCreate.push({
           type: 'PHYSIOLOGY_UPDATE',

@@ -361,6 +361,7 @@ model PerformanceStats {
 
 enum PendingActionType {
   PHYSIOLOGY_UPDATE
+  TRAINING_PROPOSAL
 }
 
 // 2. Définition de l'enum pour le statut

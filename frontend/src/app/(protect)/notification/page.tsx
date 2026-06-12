@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { useAuth } from '@/app/context/AuthContext';
+import { Calendar, Dumbbell, Clock, Heart, Zap } from 'lucide-react';
 
 // --- Hook de compte à rebours ---
 function useCountdown(expiresAt: string) {
@@ -28,38 +28,47 @@ function useCountdown(expiresAt: string) {
 // --- Interface ---
 interface PendingAction {
   id: string;
-  type: string;
+  type: 'TRAINING_PROPOSAL' | 'METRIC_UPDATE';
   createdAt: string;
   expiresAt: string;
-  payload: {
-    metric: string;
-    oldValue: number | null;
-    newValue: number;
-    activityId?: string;
-  };
+  payload: any;
 }
 
 // --- Composant Ligne Individuelle ---
 function NotificationItem({ action, onResolve }: { action: PendingAction, onResolve: (id: string, status: 'ACCEPTED' | 'REJECTED') => void }) {
   const { hours, minutes, seconds, isExpired } = useCountdown(action.expiresAt);
-  const isHr = action.payload.metric === 'maxHr';
-
+  
   if (isExpired) return null;
+
+  const isTraining = action.type === 'TRAINING_PROPOSAL';
+  const isHr = action.payload.metric === 'maxHr';
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all hover:shadow-md">
       <div className="flex items-start gap-4">
-        <div className={`p-3 rounded-xl flex-shrink-0 ${isHr ? 'bg-red-50 text-red-500' : 'bg-yellow-50 text-yellow-500'}`}>
-          {isHr ? '❤️' : '⚡'}
+        <div className={`p-3 rounded-xl flex-shrink-0 ${isTraining ? 'bg-indigo-50 text-indigo-600' : isHr ? 'bg-red-50 text-red-500' : 'bg-yellow-50 text-yellow-500'}`}>
+          {isTraining ? <Dumbbell size={24} /> : isHr ? <Heart size={24} /> : <Zap size={24} />}
         </div>
         <div>
           <h3 className="font-semibold text-gray-900">
-            Nouveau record de {isHr ? 'Fréquence Cardiaque Max' : 'FTP'}
+            {isTraining 
+              ? action.payload.title 
+              : `Nouveau record de ${isHr ? 'Fréquence Cardiaque Max' : 'FTP'}`
+            }
           </h3>
-          <p className="text-sm text-gray-600 mt-1">
-            Mise à jour : <span className="line-through text-gray-400">{action.payload.oldValue ?? '??'}</span> → 
-            <strong className="text-green-600 ml-1">{action.payload.newValue}</strong>
-          </p>
+          
+          {isTraining ? (
+            <div className="text-sm text-gray-600 mt-1 space-y-1">
+              <p className="flex items-center gap-2"><Calendar size={14}/> {new Date(action.payload.scheduledDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+              {action.payload.duration && <p className="flex items-center gap-2"><Clock size={14}/> {action.payload.duration} minutes</p>}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 mt-1">
+              Mise à jour : <span className="line-through text-gray-400">{action.payload.oldValue ?? '??'}</span> → 
+              <strong className="text-green-600 ml-1">{action.payload.newValue}</strong>
+            </p>
+          )}
+
           <p className="mt-2 text-xs font-mono font-bold text-red-500 bg-red-50 px-2 py-1 rounded inline-block">
             ⏳ {hours}h {minutes}m {seconds}s restants
           </p>
@@ -71,13 +80,13 @@ function NotificationItem({ action, onResolve }: { action: PendingAction, onReso
           onClick={() => onResolve(action.id, 'REJECTED')}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
         >
-          Ignorer
+          {isTraining ? 'Refuser' : 'Ignorer'}
         </button>
         <button
           onClick={() => onResolve(action.id, 'ACCEPTED')}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
         >
-          Mettre à jour
+          {isTraining ? 'Accepter' : 'Mettre à jour'}
         </button>
       </div>
     </div>
@@ -109,15 +118,18 @@ export default function NotificationsPage() {
   }, [fetchActions]);
 
   const handleResolve = async (id: string, status: 'ACCEPTED' | 'REJECTED') => {
+    // Optimistic UI update
     setActions((prev) => prev.filter((action) => action.id !== id));
     try {
-      await api(`/pending-actions/${id}/resolve`, {
+      const res = await api(`/pending-actions/${id}/resolve`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
+        headers: { 'Content-Type': 'application/json' }
       });
+      if (!res.ok) throw new Error("Erreur serveur");
     } catch (error) {
       console.error("Erreur résolution:", error);
-      fetchActions();
+      fetchActions(); // Recharger en cas d'erreur
     }
   };
 
@@ -128,10 +140,12 @@ export default function NotificationsPage() {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Mes Notifications</h1>
+      
       {actions.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
           <div className="text-4xl mb-4">📭</div>
           <h3 className="text-lg font-medium text-gray-900">Tout est à jour !</h3>
+          <p className="text-gray-500 mt-2">Aucune action en attente pour le moment.</p>
         </div>
       ) : (
         <div className="space-y-4">

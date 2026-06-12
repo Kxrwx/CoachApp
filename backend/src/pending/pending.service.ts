@@ -39,6 +39,10 @@ export class PendingService {
         await this.handlePhysiologyUpdate(userId, payload);
         break;
       
+      case 'TRAINING_PROPOSAL' as PendingActionType: 
+        await this.handleTrainingProposal(userId, payload);
+        break;
+
       default:
         this.logger.warn(`Aucune logique d'exécution définie pour le type : ${type}`);
     }
@@ -58,5 +62,28 @@ export class PendingService {
     });
 
     this.logger.log(`[Physio Update] ${metric} mis à jour à ${newValue} pour l'user ${userId}`);
+  }
+
+  private async handleTrainingProposal(userId: string, payload: any) {
+    const { title, scheduledDate, activityType, description, coachId } = payload;
+
+
+    if (!title || !scheduledDate || !activityType) {
+      throw new BadRequestException("Payload invalide pour TRAINING_PROPOSAL");
+    }
+
+
+    await this.prisma.plannedWorkout.create({
+      data: {
+        userId,
+        title,
+        description: description || null,
+        type: activityType,                 
+        startDate: new Date(scheduledDate), 
+
+      }
+    });
+
+    this.logger.log(`[Training Proposal] Séance '${title}' acceptée et planifiée pour l'user ${userId} (par le coach ${coachId})`);
   }
 }

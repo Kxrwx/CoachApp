@@ -3,15 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { api } from '@/lib/api'; 
+import { Calendar, Dumbbell, Clock, Heart, Zap } from 'lucide-react';
 
 interface PendingAction {
   id: string;
-  type: string;
-  payload: {
-    metric: string;
-    oldValue: number | null;
-    newValue: number;
-  };
+  type: 'TRAINING_PROPOSAL' | 'METRIC_UPDATE';
+  payload: any;
 }
 
 export default function PendingActionsChecker({ userId }: { userId: string }) {
@@ -22,10 +19,10 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
 
   const fetchLatestAction = useCallback(async () => {
     try {
-      // Plus besoin de gérer les headers ni le token, ton utilitaire fait tout !
       const res = await api('/pending-actions');
       if (res.ok) {
         const data = await res.json();
+        // On prend la première action PENDING
         if (data && data.length > 0) {
           setAction(data[0]);
           setIsOpen(true);
@@ -40,26 +37,27 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
     if (!userId) return;
     fetchLatestAction();
 
-    const socket: Socket = io(WS_URL, {
-      query: { userId },
-    });
+    const socket: Socket = io(WS_URL, { query: { userId } });
+    socket.on('NEW_PENDING_ACTION', () => fetchLatestAction());
 
-    socket.on('NEW_PENDING_ACTION', (data) => {
-      console.log('🔔 Événement WS reçu !', data);
-      fetchLatestAction();
-    });
-
-    return () => {
-      socket.disconnect();
-    };
+    return () => { socket.disconnect(); };
   }, [userId, WS_URL, fetchLatestAction]);
 
   const handleResolve = async (status: 'ACCEPTED' | 'REJECTED') => {
     if (!action) return;
+
+    if (status === 'REJECTED') {
+      // Pour "Ignorer", on ferme juste le popup sans toucher au statut en base
+      setIsOpen(false);
+      return;
+    }
+
+    // Pour "Accepter", on appelle l'API
     try {
       const res = await api(`/pending-actions/${action.id}/resolve`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
+        headers: { 'Content-Type': 'application/json' }
       });
       
       if (res.ok) {
@@ -73,21 +71,37 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
 
   if (!isOpen || !action) return null;
 
+  const isTraining = action.type === 'TRAINING_PROPOSAL';
   const isHr = action.payload.metric === 'maxHr';
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] transition-opacity">
       <div className="bg-white p-6 rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 animate-in fade-in zoom-in duration-200">
-        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          {isHr ? '❤️' : '⚡'} Nouveau record détecté !
-        </h3>
-        <p className="mt-3 text-sm text-gray-600">
-          Ton profil physiologique a potentiellement évolué. Ta <strong>{isHr ? 'Fréquence Cardiaque Max' : 'FTP'}</strong> est passée de <span className="font-medium text-gray-400 line-through">{action.payload.oldValue ?? '??'}</span> à <span className="font-bold text-green-500">{action.payload.newValue}</span> !
-        </p>
-        <p className="text-xs text-gray-500 mt-2">
-          Veux-tu mettre à jour tes zones d'entraînement avec cette nouvelle valeur ?
-        </p>
         
+        {/* HEADER */}
+        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          {isTraining ? <Dumbbell className="text-indigo-600" /> : isHr ? '❤️' : '⚡'} 
+          {isTraining ? "Nouvelle séance" : "Nouveau record détecté !"}
+        </h3>
+
+        {/* CONTENU */}
+        <div className="mt-4">
+          {isTraining ? (
+            <div className="space-y-3">
+              <p className="text-gray-700 font-bold">{action.payload.title}</p>
+              <div className="bg-gray-50 p-3 rounded-xl text-sm space-y-2">
+                <p className="flex items-center gap-2 text-gray-600"><Calendar size={16}/> {new Date(action.payload.scheduledDate).toLocaleDateString('fr-FR')}</p>
+                {action.payload.duration && <p className="flex items-center gap-2 text-gray-600"><Clock size={16}/> {action.payload.duration} minutes</p>}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">
+              Ton profil physiologique a potentiellement évolué. Ta <strong>{isHr ? 'Fréquence Cardiaque Max' : 'FTP'}</strong> est passée de <span className="font-medium text-gray-400 line-through">{action.payload.oldValue ?? '??'}</span> à <span className="font-bold text-green-500">{action.payload.newValue}</span> !
+            </p>
+          )}
+        </div>
+        
+        {/* BOUTONS */}
         <div className="mt-6 flex justify-end gap-3">
           <button 
             onClick={() => handleResolve('REJECTED')}
@@ -97,9 +111,9 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
           </button>
           <button 
             onClick={() => handleResolve('ACCEPTED')}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm"
           >
-            Mettre à jour
+            {isTraining ? "Accepter la séance" : "Mettre à jour"}
           </button>
         </div>
       </div>
