@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react"; // ❌ Supprimé: useEffect
 
 import ActivityOverview from "./sections/ActivityOverview";
 import ActivityProfileChart from "./sections/ActivityProfileChart";
@@ -10,13 +10,15 @@ import ActivityZoneDonut from "./sections/ActivityZoneDonut";
 
 import { useActivityAnalysis } from "./hooks/useActivityAnalysis";
 import { useZoneDistribution } from "./hooks/useZoneDistribution";
-import { api } from "@/lib/api";
+// ❌ Supprimé: import { api } from "@/lib/api";
 
 interface UploadViewProps {
   fitStats: any;
   charts: any;
   records: any[];
   activity: any;
+  fcMaxFallback?: number | null; 
+  ftpFallback?: number | null;   
 }
 
 export default function UploadView({
@@ -24,13 +26,15 @@ export default function UploadView({
   charts,
   records,
   activity,
+  fcMaxFallback = null,
+  ftpFallback = null,
 }: UploadViewProps) {
+
   /*
   |--------------------------------------------------------------------------
   | SELECTION PLAGE
   |--------------------------------------------------------------------------
   */
-
   const [selection, setSelection] = useState<{
     startIndex: number | null;
     endIndex: number | null;
@@ -55,7 +59,6 @@ export default function UploadView({
   | ANALYSE ACTIVITÉ
   |--------------------------------------------------------------------------
   */
-
   const {
     unifiedSeries,
     availableMetrics,
@@ -66,53 +69,20 @@ export default function UploadView({
     powerStats,
   } = useActivityAnalysis(records, selection);
 
-/*
-|--------------------------------------------------------------------------
-| PHYSIOLOGY 
-|--------------------------------------------------------------------------
-*/
-
-// On initialise directement avec les données de l'activité enrichie par le parent
-const [fcMax, setFcMax] = useState<number | null>(
-  activity?.physio?.maxHr ?? activity?.physio?.hrMax ?? null
-);
-const [ftp, setFtp] = useState<number | null>(
-  activity?.physio?.ftp ?? null
-);
-
-useEffect(() => {
-  // Si le parent a bien transmis les données, on n'a pas besoin de refaire un fetch
-  if (activity?.physio?.maxHr || activity?.physio?.ftp) {
-    setFcMax(activity.physio.maxHr ?? activity.physio.hrMax);
-    setFtp(activity.physio.ftp);
-    return;
-  }
-
-  // Optionnel : Un fallback de sécurité UNIQUEMENT si les données sont absentes.
-  // Attention : en mode Coach, il faudrait passer l'athleteId ici, sinon tu auras les datas du coach.
-  async function fetchPhysiologyFallback() {
-    try {
-      // Remarque : adapter la route si besoin d'un fallback spécifique à l'athlète
-      const res = await api("/physiology"); 
-      if (res.ok) {
-        const data = await res.json();
-        setFcMax(data.maxHr ?? data.hrMax ?? null);
-        setFtp(data.ftp ?? null);
-      }
-    } catch (e) {
-      console.error("Physiology fetch error:", e);
-    }
-  }
-  
-  fetchPhysiologyFallback();
-}, [activity]);
+  /*
+  |--------------------------------------------------------------------------
+  | PHYSIOLOGY (Calculé directement à la volée via les props)
+  |--------------------------------------------------------------------------
+  */
+  // ❌ Supprimé: Les useState et le gros useEffect avec appel API
+  const fcMax = activity?.physio?.maxHr ?? activity?.physio?.hrMax ?? fcMaxFallback;
+  const ftp = activity?.physio?.ftp ?? ftpFallback;
 
   /*
   |--------------------------------------------------------------------------
   | DISTRIBUTION ZONES (pour le donut)
   |--------------------------------------------------------------------------
   */
-
   const { hrDistribution, powerDistribution, hrTotalMs, powerTotalMs } =
     useZoneDistribution(unifiedSeries, fcMax, ftp);
 
@@ -121,7 +91,6 @@ useEffect(() => {
   | RENDER
   |--------------------------------------------------------------------------
   */
-
   return (
     <div className="space-y-6">
       <ActivityOverview
