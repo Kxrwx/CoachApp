@@ -6,7 +6,23 @@ import { randomBytes } from 'crypto';
 
 const FitParser = require('fit-file-parser').default;
 
-@Injectable()
+interface MonthlyBucket {
+  label: string;
+  year: number;
+  month: number;
+  distance: number;
+  elevation: number;
+  count: number;
+}
+
+interface WeeklyBucket {
+  label: string;
+  start: Date;
+  end: Date;
+  distance: number;
+  elevation: number;
+  count: number;
+}@Injectable()
 export class CoachingService {
 
   private readonly logger = new Logger(CoachingService.name);
@@ -460,7 +476,7 @@ export class CoachingService {
   // ==========================================
   // 1. DONNÉES GLOBALES (Overview)
   // ==========================================
-  async getAthleteOverview(coachId: string, athleteId: string) {
+async getAthleteOverview(coachId: string, athleteId: string) {
   const link = await this.verifyCoachAccess(coachId, athleteId);
 
   const now = new Date();
@@ -478,30 +494,30 @@ export class CoachingService {
   let physio: any | null = null;
   let objectives: any[] | null = null;
 
-  // A. Activités (Stats et 7 derniers jours - basé uniquement sur uploadDetail)
+  // A. Activités (Stats et 7 derniers jours - Basé sur la présence de l'upload)
   if (link.shareActivities) {
     const activities = await this.prisma.activity.findMany({
       where: { 
         userId: athleteId, 
         startDate: { gte: sevenDaysAgo },
-        uploadDetail: { isNot: null } // On s'assure qu'il y a un upload
+        uploadDetail: { isNot: null } // On prend tant qu'il y a un upload (même s'il y a aussi un idStrava)
       },
-      include: { uploadDetail: true },
+      include: { uploadDetail: true }, // Inclut les infos du fichier d'origine
       orderBy: { startDate: 'desc' }
     });
 
     recentActivities = activities.map(act => {
-      // Distance est en km via uploadDetail
+      // Extraction stricte des métriques depuis l'upload local
       const distance = act.uploadDetail?.distance ?? 0;
-      // Note: Assurez-vous d'avoir la durée dans UploadActivity 
-      // ou ajustez la logique si elle est stockée ailleurs
-      const duration = 0; 
+      const elevation = act.uploadDetail?.elevation ?? 0;
+      const duration = 0; // Reste à 0 en attendant l'ajout de la durée dans UploadActivity
       
       return {
         id: act.id,
         title: 'Activité uploadée',
         date: act.startDate,
         distance,
+        elevation,
         duration,
       };
     });
@@ -585,26 +601,130 @@ export class CoachingService {
   // ==========================================
   // 3. ANALYSE POUSSÉE (Performance & Computed Metrics)
   // ==========================================
-  async getAthleteAnalytics(coachId: string, athleteId: string) {
-    const link = await this.verifyCoachAccess(coachId, athleteId);
 
-    if (!link.shareAnalytics) {
-      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses analyses poussées.");
+
+async getAthleteAnalytics(coachId: string, athleteId: string) {
+  const link = await this.verifyCoachAccess(coachId, athleteId);
+
+  if (!link.shareAnalytics) {
+    throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses analyses poussées.");
+  }
+
+  const now = new Date();
+
+  // 1. Borne de départ (il y a 12 mois)
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(now.getMonth() - 11); 
+  twelveMonthsAgo.setDate(1);
+  twelveMonthsAgo.setHours(0, 0, 0, 0);
+
+  // 2. Récupération Prisma
+  const activities = await this.prisma.activity.findMany({
+    where: {
+      userId: athleteId,
+      startDate: { gte: twelveMonthsAgo },
+      uploadDetail: { isNot: null }
+    },
+    include: {
+      uploadDetail: true
+    },
+    orderBy: { startDate: 'asc' }
+  });
+
+  // Variables pour les totaux globaux (sur les 12 derniers mois) 🚀
+  let totalDistance = 0;
+  let totalElevation = 0;
+  let totalCount = activities.length;
+
+  // 3. Initialisation pour les 12 derniers mois
+  const monthlyAnalytics: MonthlyBucket[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(now.getMonth() - i);
+    
+    monthlyAnalytics.push({
+      label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      distance: 0,
+      elevation: 0,
+      count: 0
+    });
+  }
+
+  // 4. Initialisation pour les 4 dernières semaines
+  const weeklyAnalytics: WeeklyBucket[] = [];
+  for (let i = 3; i >= 0; i--) {
+    const start = new Date();
+    start.setDate(now.getDate() - (i * 7) - 6);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setDate(now.getDate() - (i * 7));
+    end.setHours(23, 59, 59, 999);
+
+    const label = i === 0 ? "Cette semaine" : `S -${i}`;
+
+    weeklyAnalytics.push({
+      label,
+      start,
+      end,
+      distance: 0,
+      elevation: 0,
+      count: 0
+    });
+  }
+
+  // 5. Ventilation des données et calcul des totaux globaux
+  activities.forEach(activity => {
+    const actDate = new Date(activity.startDate);
+    const distance = activity.uploadDetail?.distance ?? 0;
+    const elevation = activity.uploadDetail?.elevation ?? 0;
+
+    // On cumule les totaux globaux sur la période complète 📈
+    totalDistance += distance;
+    totalElevation += elevation;
+
+    // Répartition Mensuelle
+    const actYear = actDate.getFullYear();
+    const actMonth = actDate.getMonth();
+    const monthBucket = monthlyAnalytics.find(m => m.year === actYear && m.month === actMonth);
+    if (monthBucket) {
+      monthBucket.distance += distance;
+      monthBucket.elevation += elevation;
+      monthBucket.count += 1;
     }
 
-    // Récupération des records de puissance et stats d'analyse
-    const performanceStats = await this.prisma.performanceStats.findMany({
-      where: { userId: athleteId },
-      orderBy: { periodStart: 'asc' }
-    });
+    // Répartition Hebdomadaire
+    const weekBucket = weeklyAnalytics.find(w => actDate >= w.start && actDate <= w.end);
+    if (weekBucket) {
+      weekBucket.distance += distance;
+      weekBucket.elevation += elevation;
+      weekBucket.count += 1;
+    }
+  });
 
-    const computedMetrics = await this.prisma.computedMetric.findMany({
-      where: { userId: athleteId },
-      include: { metric: true }
-    });
-
-    return { performanceStats, computedMetrics };
-  }
+  // 6. Payload final enrichi
+  return {
+    totals: {
+      distance: parseFloat(totalDistance.toFixed(1)),
+      elevation: Math.round(totalElevation),
+      count: totalCount
+    },
+    monthly: monthlyAnalytics.map(({ label, distance, elevation, count }) => ({
+      label,
+      distance: parseFloat(distance.toFixed(1)),
+      elevation: Math.round(elevation),
+      count
+    })),
+    weekly: weeklyAnalytics.map(({ label, distance, elevation, count }) => ({
+      label,
+      distance: parseFloat(distance.toFixed(1)),
+      elevation: Math.round(elevation),
+      count
+    }))
+  };
+}
 
   // ==========================================
   // 4. OBJECTIFS
@@ -685,21 +805,29 @@ export class CoachingService {
   // ==========================================
   // 5. RECORDS (PRs)
   // ==========================================
-  async getAthleteRecords(coachId: string, athleteId: string) {
-    const link = await this.verifyCoachAccess(coachId, athleteId);
+async getAthleteRecords(coachId: string, athleteId: string) {
 
-    if (!link.shareRecords) {
-      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses records.");
-    }
+  const link = await this.verifyCoachAccess(coachId, athleteId);
 
-    const records = await this.prisma.personalRecord.findMany({
-      where: { userId: athleteId },
-      include: { metric: true }, // Permet de récupérer l'unité et le nom du record
-      orderBy: { achievedAt: 'desc' }
-    });
-
-    return records;
+  if (!link.shareRecords) {
+    throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses records.");
   }
+
+
+  const records = await this.prisma.personalRecord.findMany({
+    where: { 
+      userId: athleteId,
+      OR: [
+        { sourceType: null },             
+        { sourceType: { not: 'STRAVA' } } 
+      ]
+    },
+    include: { metric: true },
+    orderBy: { achievedAt: 'desc' }
+  });
+
+  return records;
+}
 
   // ==========================================
   // 6. HISTORIQUE DES ACTIVITÉS COMPLET (Paginé)

@@ -63,8 +63,6 @@ export class CoachingController {
     return this.coachingService.getAthletesSummary(req.user.sub);
   }
 
-
-  //modifier enlever duration et remplacer par elevation
   @Get('athletes/:id/overview')
   async getAthleteOverview(@Req() req, @Param('id') athleteId: string) {
     return this.coachingService.getAthleteOverview(req.user.sub, athleteId);

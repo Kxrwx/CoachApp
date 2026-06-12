@@ -280,7 +280,7 @@ model WebhookStrava {
 model Stats {
   id          String    @id @default(uuid())
   userId      String
-  periodType  String    // "month_2026_05", "year_2026", "ride_all"
+  periodType  String   
   periodStart DateTime?
   
   // Totaux agrégés (Strava + Upload)
