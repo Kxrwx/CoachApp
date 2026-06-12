@@ -610,24 +610,77 @@ export class CoachingService {
   // 4. OBJECTIFS
   // ==========================================
   async getAthleteObjectives(coachId: string, athleteId: string) {
-    const link = await this.verifyCoachAccess(coachId, athleteId);
+  const link = await this.verifyCoachAccess(coachId, athleteId);
 
-    if (!link.shareObjectives) {
-      throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses objectifs.");
-    }
-
-    const goals = await this.prisma.goal.findMany({
-      where: { userId: athleteId },
-      include: { 
-        targets: { 
-          include: { metric: true } 
-        } 
-      },
-      orderBy: { endDate: 'asc' }
-    });
-
-    return goals;
+  if (!link.shareObjectives) {
+    throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses objectifs.");
   }
+
+
+  const goals = await this.prisma.goal.findMany({
+    where: { userId: athleteId },
+    include: { 
+      targets: { 
+        include: { metric: true } 
+      } 
+    },
+    orderBy: { endDate: 'asc' }
+  });
+
+  if (goals.length === 0) return goals;
+
+  const metricIds = Array.from(new Set(goals.flatMap((goal) => goal.targets.map((target) => target.metricId))));
+  const metricKeys = Array.from(new Set(goals.flatMap((goal) => goal.targets.map((target) => target.metric?.key || '')))).filter(Boolean);
+
+  const personalRecords = metricIds.length > 0 
+    ? await this.prisma.personalRecord.findMany({
+        where: { userId: athleteId, metricId: { in: metricIds } },
+        orderBy: { value: 'desc' },
+      })
+    : [];
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const computedMetrics = metricKeys.length > 0
+    ? await this.prisma.computedMetric.findMany({
+        where: { userId: athleteId, metricKey: { in: metricKeys }, period: currentMonth },
+      })
+    : [];
+
+  const bestRecordByMetric = personalRecords.reduce<Record<string, number>>((acc, record) => {
+    if (record.sourceType === 'STRAVA') return acc;
+
+    if (!acc[record.metricId] || acc[record.metricId] < record.value) {
+      acc[record.metricId] = record.value;
+    }
+    return acc;
+  }, {});
+
+  return goals.map((goal) => ({
+    ...goal,
+    targets: goal.targets.map((target) => {
+      const metricKey = target.metric?.key;
+      
+      const currentValue = metricKey
+        ? computedMetrics.find((computed) => computed.metricKey === metricKey)?.value ?? null
+        : null;
+        
+      const targetValue = target.targetValue || 0;
+      
+      const progressPercent = currentValue && targetValue
+        ? Math.round((currentValue / targetValue) * 100)
+        : null;
+        
+      return {
+        ...target,
+        currentValue,
+        progressPercent,
+        recordValue: bestRecordByMetric[target.metricId] ?? null, 
+      };
+    }),
+  }));
+}
 
   // ==========================================
   // 5. RECORDS (PRs)
