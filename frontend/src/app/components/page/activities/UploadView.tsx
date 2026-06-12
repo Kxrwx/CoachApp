@@ -66,54 +66,46 @@ export default function UploadView({
     powerStats,
   } = useActivityAnalysis(records, selection);
 
-  /*
-  |--------------------------------------------------------------------------
-  | PHYSIOLOGY (partagé entre ZoneChart et ZoneDonut)
-  |--------------------------------------------------------------------------
-  */
+/*
+|--------------------------------------------------------------------------
+| PHYSIOLOGY 
+|--------------------------------------------------------------------------
+*/
 
-  const [fcMax, setFcMax] = useState<number | null>(null);
-  const [ftp, setFtp] = useState<number | null>(null);
+// On initialise directement avec les données de l'activité enrichie par le parent
+const [fcMax, setFcMax] = useState<number | null>(
+  activity?.physio?.maxHr ?? activity?.physio?.hrMax ?? null
+);
+const [ftp, setFtp] = useState<number | null>(
+  activity?.physio?.ftp ?? null
+);
 
-  const activityDate =
-    activity?.startTime ??
-    activity?.decodedFileData?.sessions?.[0]?.start_time ??
-    new Date().toISOString();
+useEffect(() => {
+  // Si le parent a bien transmis les données, on n'a pas besoin de refaire un fetch
+  if (activity?.physio?.maxHr || activity?.physio?.ftp) {
+    setFcMax(activity.physio.maxHr ?? activity.physio.hrMax);
+    setFtp(activity.physio.ftp);
+    return;
+  }
 
-  useEffect(() => {
-    async function fetchPhysiology() {
-      try {
-        const actDate = new Date(activityDate);
-        const diffDays = (Date.now() - actDate.getTime()) / 86400000;
-
-        let data: any = null;
-
-        if (diffDays > 30) {
-          const res = await api("/physiology/month", {
-            method: "POST",
-            body: JSON.stringify({
-              month: actDate.getMonth() + 1,
-              year: actDate.getFullYear(),
-            }),
-          });
-          if (res.ok) data = await res.json();
-        }
-
-        if (!data) {
-          const res = await api("/physiology");
-          if (res.ok) data = await res.json();
-        }
-
-        if (data) {
-          setFcMax(data.maxHr ?? data.hrMax ?? null);
-          setFtp(data.ftp ?? null);
-        }
-      } catch (e) {
-        console.error("Physiology fetch error:", e);
+  // Optionnel : Un fallback de sécurité UNIQUEMENT si les données sont absentes.
+  // Attention : en mode Coach, il faudrait passer l'athleteId ici, sinon tu auras les datas du coach.
+  async function fetchPhysiologyFallback() {
+    try {
+      // Remarque : adapter la route si besoin d'un fallback spécifique à l'athlète
+      const res = await api("/physiology"); 
+      if (res.ok) {
+        const data = await res.json();
+        setFcMax(data.maxHr ?? data.hrMax ?? null);
+        setFtp(data.ftp ?? null);
       }
+    } catch (e) {
+      console.error("Physiology fetch error:", e);
     }
-    fetchPhysiology();
-  }, [activityDate]);
+  }
+  
+  fetchPhysiologyFallback();
+}, [activity]);
 
   /*
   |--------------------------------------------------------------------------
@@ -157,7 +149,7 @@ export default function UploadView({
 
       <ActivityZoneChart
         unifiedSeries={unifiedSeries}
-        activityDate={activityDate}
+        activityDate={activity.startDate}
         fcMax={fcMax}
         ftp={ftp}
       />
