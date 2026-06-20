@@ -117,4 +117,21 @@ async getAthleteActivity(
     const coachId = req.user.sub;
     return this.coachingService.proposeTrainingSession(coachId, athleteId, body);
   }
+
+  @Post('athletes/:id/goal-proposal')
+  async proposeGoal(
+    @Req() req,
+    @Param('id') athleteId: string,
+    @Body() body: { 
+      name: string; 
+      type: string;
+      startDate: string;
+      endDate: string; 
+      description?: string;
+      targets?: { metricId: string; targetValue: number }[];
+    }
+  ) {
+    const coachId = req.user.sub;
+    return this.coachingService.proposeGoal(coachId, athleteId, body);
+  }
 }

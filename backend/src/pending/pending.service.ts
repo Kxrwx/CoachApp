@@ -43,6 +43,10 @@ export class PendingService {
         await this.handleTrainingProposal(userId, payload);
         break;
 
+      case 'GOAL_PROPOSAL' as PendingActionType:
+        await this.handleGoalProposal(userId, payload);
+        break;
+
       default:
         this.logger.warn(`Aucune logique d'exécution définie pour le type : ${type}`);
     }
@@ -65,13 +69,22 @@ export class PendingService {
   }
 
   private async handleTrainingProposal(userId: string, payload: any) {
-    const { title, scheduledDate, activityType, description, coachId } = payload;
-
+    const { 
+      title, 
+      scheduledDate, 
+      activityType, 
+      description, 
+      coachId,
+      startTime,
+      duration,
+      isRecurring,
+      recurrenceRule,
+      color 
+    } = payload;
 
     if (!title || !scheduledDate || !activityType) {
       throw new BadRequestException("Payload invalide pour TRAINING_PROPOSAL");
     }
-
 
     await this.prisma.plannedWorkout.create({
       data: {
@@ -80,10 +93,54 @@ export class PendingService {
         description: description || null,
         type: activityType,                 
         startDate: new Date(scheduledDate), 
-
+        startTime: startTime || null,
+        duration: duration ? parseInt(duration) : null,
+        isRecurring: isRecurring || false,
+        rrule: recurrenceRule || null,
+        color: color || "#6366f1",
       }
     });
 
     this.logger.log(`[Training Proposal] Séance '${title}' acceptée et planifiée pour l'user ${userId} (par le coach ${coachId})`);
   }
+
+private async handleGoalProposal(userId: string, payload: any) {
+
+  const { 
+    name, 
+    type, 
+    startDate, 
+    endDate, 
+    targets, 
+    coachId 
+  } = payload;
+
+  const goalName = name || payload.title;
+  const goalEndDate = endDate || payload.targetDate;
+  const goalType = type || 'COACH_PROPOSAL';
+  const goalStartDate = startDate ? new Date(startDate) : new Date();
+
+  if (!goalName || !goalEndDate) {
+    throw new BadRequestException("Payload invalide pour GOAL_PROPOSAL (Le nom et la date de fin sont requis)");
+  }
+
+  await this.prisma.goal.create({
+    data: {
+      userId,
+      name: goalName,
+      type: goalType,
+      startDate: goalStartDate,
+      endDate: new Date(goalEndDate),
+      isActive: true, 
+      targets: {
+        create: targets?.map((t: any) => ({
+          metricId: t.metricId,
+          targetValue: typeof t.targetValue === 'string' ? parseFloat(t.targetValue) : t.targetValue,
+        })) || [],
+      },
+    },
+  });
+
+  this.logger.log(`[Goal Proposal] Objectif '${goalName}' accepté et créé dans la table Goal pour l'user ${userId} (par le coach ${coachId})`);
+}
 }

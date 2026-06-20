@@ -901,18 +901,16 @@ async getAthletePlanning(coachId: string, athleteId: string) {
 }
 
 async getAthleteActivityDetail(coachId: string, athleteId: string, activityId: string) {
-  // 1. Vérification des accès
   const link = await this.verifyCoachAccess(coachId, athleteId);
   if (!link.shareActivities) {
     throw new ForbiddenException("L'athlète n'a pas autorisé le partage de ses activités.");
   }
 
-  // 2. Récupération de l'activité (uniquement le détail manuel)
   const activity = await this.prisma.activity.findFirst({
     where: { id: activityId, userId: athleteId },
     include: {
-      uploadDetail: true, // On ne prend que le détail manuel
-      storage: true,      // Pour récupérer le fichier FIT
+      uploadDetail: true, 
+      storage: true,      
     },
   });
 
@@ -920,7 +918,6 @@ async getAthleteActivityDetail(coachId: string, athleteId: string, activityId: s
     throw new NotFoundException('Activité introuvable.');
   }
 
-  // 3. Parsing du fichier FIT (données réelles)
   let decodedFileData: any = null;
   const uploadFile = activity.storage.find((s) => s.source === 'UPLOAD');
 
@@ -933,7 +930,6 @@ async getAthleteActivityDetail(coachId: string, athleteId: string, activityId: s
     }
   }
 
-  // 4. Retour des données nettoyées
   return {
     id: activity.id,
     startDate: activity.startDate,
@@ -943,9 +939,8 @@ async getAthleteActivityDetail(coachId: string, athleteId: string, activityId: s
       distance: activity.uploadDetail?.distance ?? 0,
       elevation: activity.uploadDetail?.elevation ?? 0,
       type: 'Workout', 
-      // Si vous ajoutez des champs dans uploadDetail (movingTime, etc.), ajoutez-les ici
     },
-    decodedFileData, // Contient les courbes/détails du FIT
+    decodedFileData, 
   };
 }
 
@@ -957,7 +952,6 @@ async proposeTrainingSession(
     scheduledDate: string; 
     activityType: string; 
     description?: string;
-    // Nouveaux champs ajoutés ici
     startTime?: string;
     duration?: number;
     isRecurring?: boolean;
@@ -966,10 +960,8 @@ async proposeTrainingSession(
   }
 ) {
   try {
-    // Vérification des accès
     await this.verifyCoachAccess(coachId, athleteId);
 
-    // Création de l'action en attente avec le payload complet
     const pendingAction = await this.prisma.pendingAction.create({
       data: {
         userId: athleteId,
@@ -993,7 +985,6 @@ async proposeTrainingSession(
 
     this.logger.log(`[Pending System] Coach ${coachId} a proposé une séance à l'athlète ${athleteId}`);
 
-    // Notification temps réel
     this.notificationGateway.sendToUser(athleteId, 'NEW_PENDING_ACTION', {
       type: 'TRAINING_PROPOSAL',
       actionId: pendingAction.id,
@@ -1008,6 +999,59 @@ async proposeTrainingSession(
 
   } catch (error) {
     this.logger.error(`[Pending System] Erreur lors de la proposition d'entraînement :`, error);
+    throw error; 
+  }
+}
+
+async proposeGoal(
+  coachId: string, 
+  athleteId: string, 
+  data: { 
+    name: string; 
+    type: string;
+    startDate: string;
+    endDate: string; 
+    description?: string;
+    targets?: { metricId: string; targetValue: number }[];
+  }
+) {
+  try {
+    await this.verifyCoachAccess(coachId, athleteId);
+
+    const pendingAction = await this.prisma.pendingAction.create({
+      data: {
+        userId: athleteId,
+        type: 'GOAL_PROPOSAL',
+        payload: {
+          coachId, 
+          name: data.name,
+          type: data.type,
+          description: data.description || null,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          targets: data.targets || [], 
+        },
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
+      }
+    });
+
+    this.logger.log(`[Pending System] Coach ${coachId} a proposé un objectif à l'athlète ${athleteId}`);
+
+    this.notificationGateway.sendToUser(athleteId, 'NEW_PENDING_ACTION', {
+      type: 'GOAL_PROPOSAL',
+      actionId: pendingAction.id,
+      title: "Nouvelle proposition d'objectif"
+    });
+
+    return { 
+      success: true, 
+      message: "Proposition d'objectif envoyée à l'athlète", 
+      action: pendingAction 
+    };
+
+  } catch (error) {
+    this.logger.error(`[Pending System] Erreur lors de la proposition d'objectif :`, error);
     throw error; 
   }
 }
