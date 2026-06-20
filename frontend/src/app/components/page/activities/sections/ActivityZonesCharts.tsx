@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useState, useMemo, useCallback, useRef } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { ResponsiveContainer, ComposedChart, XAxis, YAxis, Area } from "recharts";
 import { Activity, Zap, Heart } from "lucide-react";
 import { MiniStat } from "../../../UICores";
@@ -34,7 +34,17 @@ type Zone = typeof HR_ZONES[0];
 
 const ZONE_HEIGHT: Record<number, number> = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7 };
 const BLOCK_Y_MAX = 7;
+const CHART_H = 200;
 const MARGIN = { top: 8, right: 8, left: 8, bottom: 0 };
+
+interface Segment {
+  zoneId: number;
+  startIdx: number;
+  endIdx: number;
+  color: string;
+  height: number;
+  totalMs: number;
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -59,15 +69,6 @@ function formatDuration(ms: number) {
     String(m).padStart(2, "0"),
     String(sec).padStart(2, "0"),
   ].filter(Boolean).join(":");
-}
-
-interface Segment {
-  zoneId: number;
-  startIdx: number;
-  endIdx: number;
-  color: string;
-  height: number;
-  totalMs: number;
 }
 
 /*
@@ -101,12 +102,18 @@ function ZoneBars({
               outline: isSelected ? `2px solid ${zone.color}` : "1px solid #e2e8f0",
             }}
           >
-            <span className="text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white" style={{ backgroundColor: zone.color }}>
+            <span
+              className="text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white"
+              style={{ backgroundColor: zone.color }}
+            >
               {zone.label}
             </span>
             <span className="text-xs font-bold text-slate-600 w-24 flex-shrink-0">{zone.name}</span>
             <div className="flex-1 h-2.5 bg-slate-200 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: zone.color }} />
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${pct}%`, backgroundColor: zone.color }}
+              />
             </div>
             <span className="text-[11px] font-bold text-slate-500 w-24 text-right flex-shrink-0">
               {formatDuration(data?.totalMs ?? 0)}
@@ -137,34 +144,28 @@ export default function ActivityZoneChart({
   ftp: number | null;
 }) {
   const [tab, setTab] = useState<"hr" | "power">("hr");
-
-  // Sélection individuelle par index de segment (clic sur un bloc)
   const [selectedSegIdx, setSelectedSegIdx] = useState<number | null>(null);
-  // Sélection de zone entière (clic sur une barre)
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const [hoveredSegIdx, setHoveredSegIdx]   = useState<number | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
+  const [chartW, setChartW] = useState<number>(0);
 
-  // Dimensions de la zone de tracé (calculées via ResizeObserver)
+  // Le div est toujours dans le DOM (height=1 caché) pour que le ref soit disponible
   const chartRef = useRef<HTMLDivElement>(null);
-  const [chartDims, setChartDims] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = chartRef.current;
     if (!el) return;
     const update = () => {
-      setChartDims({
-        left:   MARGIN.left,
-        top:    MARGIN.top,
-        width:  el.clientWidth  - MARGIN.left - MARGIN.right,
-        height: el.clientHeight - MARGIN.top  - MARGIN.bottom,
-      });
+      if (el.clientWidth > 0) setChartW(el.clientWidth);
     };
-    update(); // init immédiate avant le premier paint
+    update();
+    const t1 = setTimeout(update, 50);
+    const t2 = setTimeout(update, 200);
     const obs = new ResizeObserver(update);
     obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
+    return () => { clearTimeout(t1); clearTimeout(t2); obs.disconnect(); };
+  }, [fcMax, ftp]);
 
   const availableMetrics = useMemo(() => ({
     hr:    unifiedSeries.some((d) => d.heartRate != null),
@@ -197,7 +198,7 @@ export default function ActivityZoneChart({
   }, [unifiedSeries]);
 
   const blockSeries = useMemo(() => {
-    if (!currentRef) return altNormSeries.map((d) => ({ ...d, zoneId: null }));
+    if (!currentRef) return altNormSeries.map((d) => ({ ...d, zoneId: null, zoneHeight: 0, zoneColor: "transparent" }));
     return altNormSeries.map((d) => {
       const val = d[currentMetric];
       if (val == null) return { ...d, zoneId: null, zoneHeight: 0, zoneColor: "transparent" };
@@ -218,11 +219,15 @@ export default function ActivityZoneChart({
     let cur = blockSeries[0], segStart = 0, count = 1;
     for (let i = 1; i < blockSeries.length; i++) {
       if (blockSeries[i].zoneId !== cur.zoneId) {
-        if (cur.zoneId !== null) segs.push({ zoneId: cur.zoneId, startIdx: segStart, endIdx: i - 1, color: cur.zoneColor, height: cur.zoneHeight, totalMs: count * 1000 });
+        if (cur.zoneId !== null) {
+          segs.push({ zoneId: cur.zoneId, startIdx: segStart, endIdx: i - 1, color: cur.zoneColor, height: cur.zoneHeight, totalMs: count * 1000 });
+        }
         cur = blockSeries[i]; segStart = i; count = 1;
       } else { count++; }
     }
-    if (cur.zoneId !== null) segs.push({ zoneId: cur.zoneId, startIdx: segStart, endIdx: blockSeries.length - 1, color: cur.zoneColor, height: cur.zoneHeight, totalMs: count * 1000 });
+    if (cur.zoneId !== null) {
+      segs.push({ zoneId: cur.zoneId, startIdx: segStart, endIdx: blockSeries.length - 1, color: cur.zoneColor, height: cur.zoneHeight, totalMs: count * 1000 });
+    }
     return segs;
   }, [blockSeries]);
 
@@ -240,7 +245,10 @@ export default function ActivityZoneChart({
     [blockSeries, currentZones]
   );
 
-  const totalMs = useMemo(() => distribution.reduce((acc, d) => acc + d.totalMs, 0), [distribution]);
+  const totalMs = useMemo(
+    () => distribution.reduce((acc, d) => acc + d.totalMs, 0),
+    [distribution]
+  );
 
   /*
   |--------------------------------------------------------------------------
@@ -248,15 +256,13 @@ export default function ActivityZoneChart({
   |--------------------------------------------------------------------------
   */
 
-  // Clic sur un bloc individuel dans le graphique
   const handleSegmentClick = useCallback((segIdx: number) => {
-    setSelectedZoneId(null); // reset sélection zone
+    setSelectedZoneId(null);
     setSelectedSegIdx((prev) => (prev === segIdx ? null : segIdx));
   }, []);
 
-  // Clic sur une barre de zone → sélectionne tous les blocs de cette zone
   const handleZoneBarClick = useCallback((zoneId: number) => {
-    setSelectedSegIdx(null); // reset sélection segment individuel
+    setSelectedSegIdx(null);
     setSelectedZoneId((prev) => (prev === zoneId ? null : zoneId));
   }, []);
 
@@ -272,7 +278,7 @@ export default function ActivityZoneChart({
 
   /*
   |--------------------------------------------------------------------------
-  | SEGMENT + STATS SÉLECTIONNÉS
+  | SÉLECTION
   |--------------------------------------------------------------------------
   */
 
@@ -308,14 +314,18 @@ export default function ActivityZoneChart({
         </h3>
         <div className="flex gap-2">
           {availableMetrics.hr && (
-            <button onClick={() => { setTab("hr"); setSelectedSegIdx(null); setSelectedZoneId(null); }}
-              className={`px-4 py-2 rounded-full border text-xs font-black uppercase tracking-wider transition-all ${tab === "hr" ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-300 text-slate-500"}`}>
+            <button
+              onClick={() => { setTab("hr"); setSelectedSegIdx(null); setSelectedZoneId(null); }}
+              className={`px-4 py-2 rounded-full border text-xs font-black uppercase tracking-wider transition-all ${tab === "hr" ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-300 text-slate-500"}`}
+            >
               <Heart size={12} className="inline mr-1" />FC
             </button>
           )}
           {availableMetrics.power && (
-            <button onClick={() => { setTab("power"); setSelectedSegIdx(null); setSelectedZoneId(null); }}
-              className={`px-4 py-2 rounded-full border text-xs font-black uppercase tracking-wider transition-all ${tab === "power" ? "bg-amber-500 border-amber-500 text-white" : "bg-white border-slate-300 text-slate-500"}`}>
+            <button
+              onClick={() => { setTab("power"); setSelectedSegIdx(null); setSelectedZoneId(null); }}
+              className={`px-4 py-2 rounded-full border text-xs font-black uppercase tracking-wider transition-all ${tab === "power" ? "bg-amber-500 border-amber-500 text-white" : "bg-white border-slate-300 text-slate-500"}`}
+            >
               <Zap size={12} className="inline mr-1" />Puissance
             </button>
           )}
@@ -324,42 +334,61 @@ export default function ActivityZoneChart({
 
       {refMissing && (
         <div className="text-xs text-slate-400 bg-slate-50 rounded-xl p-4">
-          {tab === "hr" ? "FC max non disponible — renseignez-la dans vos paramètres physiologiques." : "FTP non disponible — renseignez-le dans vos paramètres physiologiques."}
+          {tab === "hr"
+            ? "FC max non disponible — renseignez-la dans vos paramètres physiologiques."
+            : "FTP non disponible — renseignez-le dans vos paramètres physiologiques."}
         </div>
       )}
 
-      {!refMissing && (
-        <>
-          {/* GRAPHIQUE */}
-          <div className="relative w-full h-[200px] overflow-hidden" ref={chartRef}>
+      {/* ------------------------------------------------------------------ */}
+      {/* div ref TOUJOURS dans le DOM (height=1 si refMissing)              */}
+      {/* Garantit que useEffect peut mesurer clientWidth dès le mount       */}
+      {/* ------------------------------------------------------------------ */}
+      <div
+        ref={chartRef}
+        className="relative w-full overflow-hidden"
+        style={{
+          height: refMissing ? 1 : CHART_H,
+          visibility: refMissing ? "hidden" : "visible",
+        }}
+      >
+        {!refMissing && (
+          <>
+            {/* SVG overlay — blocs de zones interactifs */}
+            <svg
+              className="absolute inset-0 z-10"
+              width="100%"
+              height="100%"
+              style={{ pointerEvents: "none" }}
+            >
+              {chartW > 0 && zoneSegments.map((seg, i) => {
+                const n     = blockSeries.length;
+                const plotW = chartW - MARGIN.left - MARGIN.right;
+                const plotH = CHART_H  - MARGIN.top  - MARGIN.bottom;
+                const x1    = MARGIN.left + (seg.startIdx / Math.max(n - 1, 1)) * plotW;
+                const x2    = MARGIN.left + (seg.endIdx   / Math.max(n - 1, 1)) * plotW;
+                const yT    = MARGIN.top  + plotH - (seg.height / BLOCK_Y_MAX) * plotH;
+                const yB    = MARGIN.top  + plotH;
 
-            {/* SVG overlay — blocs interactifs individuels */}
-            <svg className="absolute inset-0 z-10" width="100%" height="100%" overflow="visible" style={{ pointerEvents: "none" }}>
-              {chartDims && zoneSegments.map((seg, i) => {
-                const { left, top, width, height } = chartDims;
-                const n = blockSeries.length;
-                const x1 = left + (seg.startIdx / Math.max(n - 1, 1)) * width;
-                const x2 = left + (seg.endIdx   / Math.max(n - 1, 1)) * width;
-                const yT = top + height - (seg.height / BLOCK_Y_MAX) * height;
-                const yB = top + height;
-
-                const isHovered    = hoveredSegIdx === i;
+                const isHovered      = hoveredSegIdx === i;
                 const isSelectedSeg  = selectedSegIdx === i;
                 const isSelectedZone = selectedZoneId === seg.zoneId;
                 const isSelected     = isSelectedSeg || isSelectedZone;
-                const isDimmed       = (selectedSegIdx !== null && !isSelectedSeg && selectedZoneId === null)
-                                    || (selectedZoneId !== null && !isSelectedZone && selectedSegIdx === null);
+                const isDimmed       =
+                  (selectedSegIdx !== null && selectedZoneId === null && !isSelectedSeg) ||
+                  (selectedZoneId !== null && selectedSegIdx === null && !isSelectedZone);
 
                 return (
                   <rect
                     key={i}
-                    x={x1} y={yT}
+                    x={x1}
+                    y={yT}
                     width={Math.max(1, x2 - x1)}
                     height={Math.max(1, yB - yT)}
                     fill={seg.color}
                     fillOpacity={isDimmed ? 0.12 : isSelected ? 0.95 : isHovered ? 1 : 0.75}
                     stroke={isSelected || isHovered ? seg.color : "none"}
-                    strokeWidth={isSelectedSeg ? 2.5 : isSelectedZone ? 1.5 : 1}
+                    strokeWidth={isSelectedSeg ? 2.5 : 1.5}
                     style={{ cursor: "pointer", pointerEvents: "all" }}
                     onMouseEnter={(e) => {
                       const r = chartRef.current?.getBoundingClientRect();
@@ -372,17 +401,25 @@ export default function ActivityZoneChart({
               })}
             </svg>
 
-            {/* Profil altitude — Recharts en fond */}
+            {/* Profil altitude via Recharts en fond */}
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={blockSeries} margin={MARGIN}>
                 <YAxis yAxisId="main" domain={[0, BLOCK_Y_MAX]} hide />
                 <XAxis dataKey="index" hide />
-                <Area yAxisId="main" type="monotone" dataKey="altNorm"
-                  fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1} fillOpacity={0.45} isAnimationActive={false} />
+                <Area
+                  yAxisId="main"
+                  type="monotone"
+                  dataKey="altNorm"
+                  fill="#e2e8f0"
+                  stroke="#cbd5e1"
+                  strokeWidth={1}
+                  fillOpacity={0.45}
+                  isAnimationActive={false}
+                />
               </ComposedChart>
             </ResponsiveContainer>
 
-            {/* Tooltip hover */}
+            {/* Tooltip hover segment */}
             {hoveredSeg && hoveredZone && tooltip && (
               <div
                 className="absolute pointer-events-none z-20 rounded-xl px-3 py-2.5 shadow-lg"
@@ -399,13 +436,20 @@ export default function ActivityZoneChart({
                 </div>
                 <div className="text-sm font-bold text-slate-700">{formatDuration(hoveredSeg.totalMs)}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">
-                  {Math.round(currentRef! * hoveredZone.pctMin)} – {hoveredZone.pctMax === 9999 ? "∞" : Math.round(currentRef! * hoveredZone.pctMax)}{tab === "hr" ? " bpm" : " W"}
+                  {Math.round(currentRef! * hoveredZone.pctMin)}
+                  {" – "}
+                  {hoveredZone.pctMax === 9999 ? "∞" : Math.round(currentRef! * hoveredZone.pctMax)}
+                  {tab === "hr" ? " bpm" : " W"}
                 </div>
                 <div className="text-[10px] text-slate-300 mt-1 italic">clic pour sélectionner</div>
               </div>
             )}
-          </div>
+          </>
+        )}
+      </div>
 
+      {!refMissing && (
+        <>
           <div className="text-[11px] text-slate-400 text-right -mt-2">
             {tab === "hr" ? `FC max : ${fcMax} bpm` : `FTP : ${ftp} W`}
           </div>
@@ -419,17 +463,26 @@ export default function ActivityZoneChart({
             onZoneClick={handleZoneBarClick}
           />
 
-          {/* STATS : bloc sélectionné OU vue globale */}
+          {/* ---------------------------------------------------------------- */}
+          {/* STATS : segment sélectionné / zone sélectionnée / vue globale   */}
+          {/* ---------------------------------------------------------------- */}
+
           {selectedSeg && selectedZone && segStats ? (
-            <div className="rounded-2xl p-6 space-y-4 transition-all"
-              style={{ backgroundColor: selectedZone.color + "11", border: `1px solid ${selectedZone.color}44` }}>
+            /* Segment individuel */
+            <div
+              className="rounded-2xl p-6 space-y-4 transition-all"
+              style={{ backgroundColor: selectedZone.color + "11", border: `1px solid ${selectedZone.color}44` }}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: selectedZone.color }}>
-                    {selectedZone.label} — {selectedZone.name}
+                    {selectedZone.label} — {selectedZone.name} · segment
                   </div>
                   <div className="text-sm font-bold text-slate-700 mt-0.5">
-                    {Math.round(currentRef! * selectedZone.pctMin)} – {selectedZone.pctMax === 9999 ? "∞" : Math.round(currentRef! * selectedZone.pctMax)}{tab === "hr" ? " bpm" : " W"}
+                    {Math.round(currentRef! * selectedZone.pctMin)}
+                    {" – "}
+                    {selectedZone.pctMax === 9999 ? "∞" : Math.round(currentRef! * selectedZone.pctMax)}
+                    {tab === "hr" ? " bpm" : " W"}
                   </div>
                 </div>
                 <div className="text-right">
@@ -441,24 +494,31 @@ export default function ActivityZoneChart({
                 <MiniStat label={tab === "hr" ? "FC Avg" : "Pwr Avg"} value={segStats.avg.toFixed(0)} unit={tab === "hr" ? "bpm" : "W"} />
                 <MiniStat label={tab === "hr" ? "FC Max" : "Pwr Max"} value={segStats.max.toFixed(0)} unit={tab === "hr" ? "bpm" : "W"} />
                 <MiniStat label={tab === "hr" ? "FC Min" : "Pwr Min"} value={segStats.min.toFixed(0)} unit={tab === "hr" ? "bpm" : "W"} />
-                <MiniStat label="Durée segment" value={formatDuration(selectedSeg.totalMs)} unit="" />
+                <MiniStat label="Durée" value={formatDuration(selectedSeg.totalMs)} unit="" />
               </div>
             </div>
+
           ) : selectedZoneId !== null ? (() => {
-            const zone = currentZones.find((z) => z.id === selectedZoneId)!;
-            const zoneDist = distribution.find((d) => d.zone.id === selectedZoneId);
-            const zoneData = blockSeries.filter((d) => d.zoneId === selectedZoneId);
-            const zStats = zoneData.length > 0 ? computeMetricStats(zoneData, currentMetric) : null;
+            /* Zone entière */
+            const zone      = currentZones.find((z) => z.id === selectedZoneId)!;
+            const zoneDist  = distribution.find((d) => d.zone.id === selectedZoneId);
+            const zoneData  = blockSeries.filter((d) => d.zoneId === selectedZoneId);
+            const zStats    = zoneData.length > 0 ? computeMetricStats(zoneData, currentMetric) : null;
             return (
-              <div className="rounded-2xl p-6 space-y-4 transition-all"
-                style={{ backgroundColor: zone.color + "11", border: `1px solid ${zone.color}44` }}>
+              <div
+                className="rounded-2xl p-6 space-y-4 transition-all"
+                style={{ backgroundColor: zone.color + "11", border: `1px solid ${zone.color}44` }}
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: zone.color }}>
                       {zone.label} — {zone.name} · tous les blocs
                     </div>
                     <div className="text-sm font-bold text-slate-700 mt-0.5">
-                      {Math.round(currentRef! * zone.pctMin)} – {zone.pctMax === 9999 ? "∞" : Math.round(currentRef! * zone.pctMax)}{tab === "hr" ? " bpm" : " W"}
+                      {Math.round(currentRef! * zone.pctMin)}
+                      {" – "}
+                      {zone.pctMax === 9999 ? "∞" : Math.round(currentRef! * zone.pctMax)}
+                      {tab === "hr" ? " bpm" : " W"}
                     </div>
                   </div>
                   <div className="text-right">
@@ -477,6 +537,7 @@ export default function ActivityZoneChart({
               </div>
             );
           })() : (
+            /* Vue globale */
             <div className="rounded-2xl p-6 space-y-4 bg-slate-50 border border-slate-200">
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Vue globale — {tab === "hr" ? "Fréquence cardiaque" : "Puissance"}
@@ -491,7 +552,9 @@ export default function ActivityZoneChart({
                   >
                     <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: d.zone.color }}>{d.zone.label}</span>
                     <span className="text-sm font-black text-slate-700 mt-1">{formatDuration(d.totalMs)}</span>
-                    <span className="text-[11px] text-slate-400 mt-0.5">{totalMs > 0 ? ((d.totalMs / totalMs) * 100).toFixed(1) : "0"}%</span>
+                    <span className="text-[11px] text-slate-400 mt-0.5">
+                      {totalMs > 0 ? ((d.totalMs / totalMs) * 100).toFixed(1) : "0"}%
+                    </span>
                   </button>
                 ))}
               </div>

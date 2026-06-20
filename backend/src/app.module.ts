@@ -24,6 +24,11 @@ import { UserPhysiologyModule } from './physio/physio.module';
 import { RecordService } from './record/record.service';
 import { RecordController } from './record/record.controller';
 import { RecordModule } from './record/record.module';
+import { PendingModule } from './pending/pending.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PendingCleanupService } from './pending-cleanup.service';
+import { CoachingModule } from './coaching/coaching.module';
+import { InvitationCleanupService } from './invitation-cleanup.service';
 
 @Module({
   imports: [
@@ -65,9 +70,12 @@ import { RecordModule } from './record/record.module';
     StatsModule,
     UserPhysiologyModule,
     RecordModule,
+    PendingModule,
+    NotificationsModule,
+    CoachingModule,
   ],
   controllers: [AppController, StatsController, RecordController],
-  providers: [AppService, SessionCleanupService, ActivitiesService, RecordService],
+  providers: [AppService, SessionCleanupService, PendingCleanupService,InvitationCleanupService, RecordService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

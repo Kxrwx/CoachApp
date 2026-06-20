@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react"; // ❌ Supprimé: useEffect
 
 import ActivityOverview from "./sections/ActivityOverview";
 import ActivityProfileChart from "./sections/ActivityProfileChart";
@@ -10,13 +10,15 @@ import ActivityZoneDonut from "./sections/ActivityZoneDonut";
 
 import { useActivityAnalysis } from "./hooks/useActivityAnalysis";
 import { useZoneDistribution } from "./hooks/useZoneDistribution";
-import { api } from "@/lib/api";
+// ❌ Supprimé: import { api } from "@/lib/api";
 
 interface UploadViewProps {
   fitStats: any;
   charts: any;
   records: any[];
   activity: any;
+  fcMaxFallback?: number | null; 
+  ftpFallback?: number | null;   
 }
 
 export default function UploadView({
@@ -24,13 +26,15 @@ export default function UploadView({
   charts,
   records,
   activity,
+  fcMaxFallback = null,
+  ftpFallback = null,
 }: UploadViewProps) {
+
   /*
   |--------------------------------------------------------------------------
   | SELECTION PLAGE
   |--------------------------------------------------------------------------
   */
-
   const [selection, setSelection] = useState<{
     startIndex: number | null;
     endIndex: number | null;
@@ -55,7 +59,6 @@ export default function UploadView({
   | ANALYSE ACTIVITÉ
   |--------------------------------------------------------------------------
   */
-
   const {
     unifiedSeries,
     availableMetrics,
@@ -68,59 +71,18 @@ export default function UploadView({
 
   /*
   |--------------------------------------------------------------------------
-  | PHYSIOLOGY (partagé entre ZoneChart et ZoneDonut)
+  | PHYSIOLOGY (Calculé directement à la volée via les props)
   |--------------------------------------------------------------------------
   */
-
-  const [fcMax, setFcMax] = useState<number | null>(null);
-  const [ftp, setFtp] = useState<number | null>(null);
-
-  const activityDate =
-    activity?.startTime ??
-    activity?.decodedFileData?.sessions?.[0]?.start_time ??
-    new Date().toISOString();
-
-  useEffect(() => {
-    async function fetchPhysiology() {
-      try {
-        const actDate = new Date(activityDate);
-        const diffDays = (Date.now() - actDate.getTime()) / 86400000;
-
-        let data: any = null;
-
-        if (diffDays > 30) {
-          const res = await api("/physiology/month", {
-            method: "POST",
-            body: JSON.stringify({
-              month: actDate.getMonth() + 1,
-              year: actDate.getFullYear(),
-            }),
-          });
-          if (res.ok) data = await res.json();
-        }
-
-        if (!data) {
-          const res = await api("/physiology");
-          if (res.ok) data = await res.json();
-        }
-
-        if (data) {
-          setFcMax(data.maxHr ?? data.hrMax ?? null);
-          setFtp(data.ftp ?? null);
-        }
-      } catch (e) {
-        console.error("Physiology fetch error:", e);
-      }
-    }
-    fetchPhysiology();
-  }, [activityDate]);
+  // ❌ Supprimé: Les useState et le gros useEffect avec appel API
+  const fcMax = activity?.physio?.maxHr ?? activity?.physio?.hrMax ?? fcMaxFallback;
+  const ftp = activity?.physio?.ftp ?? ftpFallback;
 
   /*
   |--------------------------------------------------------------------------
   | DISTRIBUTION ZONES (pour le donut)
   |--------------------------------------------------------------------------
   */
-
   const { hrDistribution, powerDistribution, hrTotalMs, powerTotalMs } =
     useZoneDistribution(unifiedSeries, fcMax, ftp);
 
@@ -129,7 +91,6 @@ export default function UploadView({
   | RENDER
   |--------------------------------------------------------------------------
   */
-
   return (
     <div className="space-y-6">
       <ActivityOverview
@@ -157,7 +118,7 @@ export default function UploadView({
 
       <ActivityZoneChart
         unifiedSeries={unifiedSeries}
-        activityDate={activityDate}
+        activityDate={activity.startDate}
         fcMax={fcMax}
         ftp={ftp}
       />

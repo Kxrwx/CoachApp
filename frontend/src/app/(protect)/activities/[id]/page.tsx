@@ -34,26 +34,36 @@ export default function ActivityDetailPage() {
   const router = useRouter();
   
   const [activity, setActivity] = useState<any>(null);
+  const [physioFallback, setPhysioFallback] = useState<any>(null);
   const [viewMode, setViewMode] = useState<"strava" | "upload">("strava");
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    const fetchActivityDetail = async () => {
+    const fetchActivityAndPhysio = async () => {
       try {
-        const res = await api(`/activities/${id}`);
-        if (res.ok) {
-          const data = await res.json();
+        const [resAct, resPhysio] = await Promise.all([
+          api(`/activities/${id}`),
+          api("/physiology")
+        ]);
+
+        if (resAct.ok) {
+          const data = await resAct.json();
           setActivity(data);
           setViewMode(data.idStrava ? "strava" : "upload");
         }
+
+        if (resPhysio.ok) {
+          const physioData = await resPhysio.json();
+          setPhysioFallback(physioData);
+        }
       } catch (err) {
-        console.error("Erreur récupération activité:", err);
+        console.error("Erreur récupération activité et/ou physiologie:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchActivityDetail();
+    fetchActivityAndPhysio();
   }, [id]);
 
   const handleDelete = async () => {
@@ -146,7 +156,14 @@ export default function ActivityDetailPage() {
           {viewMode === "strava" ? (
             <StravaView sd={sd} isRide={isRide} />
           ) : (
-            <UploadView fitStats={fitStats} charts={charts} records={records} activity={activity} />
+            <UploadView 
+              fitStats={fitStats} 
+              charts={charts} 
+              records={records} 
+              activity={activity}
+              fcMaxFallback={physioFallback?.maxHr ?? physioFallback?.hrMax ?? null}
+              ftpFallback={physioFallback?.ftp ?? null} 
+            />
           )}
 
         </div>

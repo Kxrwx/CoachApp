@@ -47,3 +47,28 @@ export const smoothAndFilterData = (data: any[], key: string, windowSize: number
     return { ...val, [key]: count > 0 ? sum / count : val[key] };
   });
 };
+
+import { useState, useEffect } from 'react';
+
+export function useCountdown(expiresAt: string) {
+  const calculateTimeLeft = () => Math.max(0, new Date(expiresAt).getTime() - Date.now());
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      const remaining = calculateTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining <= 0) clearInterval(timer);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [expiresAt, timeLeft]);
+
+  const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+  const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+  return { hours, minutes, seconds, isExpired: timeLeft <= 0 };
+}

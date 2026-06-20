@@ -4,39 +4,51 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { useRouter } from 'next/navigation';
 import { api, setAccessToken } from '@/lib/api';
 
-interface User { 
-    id: string; 
-    email: string; 
-    mfaEnabled?: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    integrations?: any[]; 
-}
-interface UserStrava {
-    id: string;
-    integrationId: string;
-    stravaAuth: string;
-    firstname: string;
-    lastname: string;
-    profilePicture: string;
-    city: string;
-    state: string;
-    country: string;
-    sex: string;
-  } ;
-  
+// --- Types & Interfaces ---
 
+export type Role = 'ATHLETE' | 'COACH' | 'ADMIN';
+
+interface UserRole {
+  id: string;
+  role: Role;
+}
+
+interface User { 
+  id: string; 
+  email: string; 
+  mfaEnabled?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  integrations?: any[];
+  roles?: UserRole[]; 
+}
+
+interface UserStrava {
+  id: string;
+  integrationId: string;
+  stravaAuth: string;
+  firstname: string;
+  lastname: string;
+  profilePicture: string;
+  city: string;
+  state: string;
+  country: string;
+  sex: string;
+}
 
 interface AuthContextType {
   user: User | null;
   userStrava?: UserStrava | null;
   loading: boolean;
   isAuthenticated: boolean;
+  isCoach: boolean; 
+  isAdmin: boolean; 
   logout: () => void;
   syncUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -44,81 +56,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-const syncUser = useCallback(async () => {
-  try {
-    const res = await api('/auth/me');
+  const syncUser = useCallback(async () => {
+    try {
+      const res = await api('/auth/me');
 
-    if (!res.ok) {
+      if (!res.ok) {
+        setUser(null);
+        setUserStrava(null);
+        return;
+      }
+
+      const data = await res.json();
+      setUser(data.user);
+
+      const stravaInfo = data.user.integrations?.find(
+        (i: any) => i.usersStrava !== null
+      )?.usersStrava;
+
+      setUserStrava(stravaInfo || null);
+    } catch {
       setUser(null);
       setUserStrava(null);
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const data = await res.json();
-
-    setUser(data.user);
-    const stravaInfo = data.user.integrations?.find(
-  (i: any) => i.usersStrava !== null
-)?.usersStrava;
-
-setUserStrava(stravaInfo || null);
-  } catch {
-    setUser(null);
-    setUserStrava(null);
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
+  }, []);
 
   const logout = useCallback(async () => {
-  try {
-  await api('/auth/logout', { method: 'POST' });
-} catch {}
+    try {
+      await api('/auth/logout', { method: 'POST' });
+    } catch {}
 
-  setAccessToken(null);
-  setUser(null);
-  setUserStrava(null);
+    setAccessToken(null);
+    setUser(null);
+    setUserStrava(null);
 
-  window.location.href = '/auth';
-}, []);
-const handleGlobalLogout = useCallback((e: any) => {
-  const reason = e.detail?.reason || 'session_ended';
+    window.location.href = '/auth';
+  }, []);
 
-  const isAuthPage = window.location.pathname.startsWith('/auth');
+  const handleGlobalLogout = useCallback((e: any) => {
+    const reason = e.detail?.reason || 'session_ended';
+    const isAuthPage = window.location.pathname.startsWith('/auth');
 
-  setUser(null);
-  setUserStrava(null);
+    setUser(null);
+    setUserStrava(null);
 
-  if (!isAuthPage) {
-    window.location.href = `/auth?reason=${reason}`;
-  }
-}, []);
+    if (!isAuthPage) {
+      window.location.href = `/auth?reason=${reason}`;
+    }
+  }, []);
 
   useEffect(() => {
-  const isAuthPage = window.location.pathname.startsWith('/auth');
+    const isAuthPage = window.location.pathname.startsWith('/auth');
 
-  if (!isAuthPage) {
-    syncUser();
-  } else {
-    setLoading(false);
-  }
+    if (!isAuthPage) {
+      syncUser();
+    } else {
+      setLoading(false);
+    }
+
+    window.addEventListener('auth-sync', syncUser);
+    window.addEventListener('auth-logout', handleGlobalLogout as EventListener);
+
+    return () => {
+      window.removeEventListener('auth-sync', syncUser);
+      window.removeEventListener('auth-logout', handleGlobalLogout as EventListener);
+    };
+  }, [syncUser, handleGlobalLogout]);
 
 
-  window.addEventListener('auth-sync', syncUser);
-  window.addEventListener('auth-logout', handleGlobalLogout as EventListener);
+  const isCoach = user?.roles?.some((r) => r.role === 'COACH') || false;
+  const isAdmin = user?.roles?.some((r) => r.role === 'ADMIN') || false;
 
-  return () => {
-    window.removeEventListener('auth-sync', syncUser);
-    window.removeEventListener('auth-logout', handleGlobalLogout as EventListener);
-  };
-}, [syncUser, handleGlobalLogout]);
   return (
     <AuthContext.Provider value={{ 
       user, 
       userStrava,
       loading, 
-      isAuthenticated: !!user, 
+      isAuthenticated: !!user,
+      isCoach,
+      isAdmin,
       logout, 
       syncUser 
     }}>
@@ -130,6 +147,7 @@ const handleGlobalLogout = useCallback((e: any) => {
     </AuthContext.Provider>
   );
 }
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

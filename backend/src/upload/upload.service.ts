@@ -10,8 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
 import { StatsService } from '../stats/stats.service';
 import { StravaService } from '../strava/strava.service';
-import { StorageSource, Prisma } from '@prisma/client';
+import { StorageSource, Prisma, PendingActionType } from '@prisma/client';
 import * as crypto from 'crypto';
+
+import { NotificationsGateway } from '@/notifications/notifications.gateway';
 
 const FitParser = require('fit-file-parser').default;
 
@@ -33,6 +35,7 @@ export class UploadService {
     private r2Service: R2Service,
     private statsService: StatsService,
     private stravaService: StravaService,
+    private notificationGateway: NotificationsGateway,
   ) {}
 
 
@@ -204,7 +207,7 @@ export class UploadService {
    * @return {*} => traite le fichier uploadé, extrait les données, les stocke, crée ou met à jour l'activité correspondante, et met à jour les records personnels et stats de l'utilisateur
    * @memberof UploadService
    */
-  async handleFileUpload(userId: string, file: Express.Multer.File) {
+ async handleFileUpload(userId: string, file: Express.Multer.File) {
     if (!file) throw new BadRequestException('Fichier manquant');
 
     const extension = file.originalname.split('.').pop()?.toLowerCase();
@@ -268,14 +271,14 @@ export class UploadService {
 
       await this.updatePersonalRecords(userId, parsedData.metrics, parsedData.startDate);
       
-      // ✅ Vérifier si l'activité vient aussi de Strava
-      // Si oui, ne pas ajouter les stats (elles sont déjà comptabilisées via StravaStats)
+      // ✅ AJOUT ICI : Génère les actions en attente pour la physio si nécessaire
+      await this.checkAndProposePhysioUpdates(userId, result.activityId, parsedData.metrics);
+      
       const finalActivity = await this.prisma.activity.findUnique({
         where: { id: result.activityId },
       });
 
       if (!finalActivity?.idStrava) {
-        // L'activité n'a pas de source Strava, on ajoute les stats uniquement pour l'upload
         await this.statsService.addUploadStats(userId, fileDistance, fileElevation, parsedData.startDate);
       } else {
         this.logger.log(
@@ -291,6 +294,51 @@ export class UploadService {
   }
 
 
+private async checkAndProposePhysioUpdates(userId: string, activityId: string, metrics: Record<string, number>) {
+    try {
+      const currentPhysio = await this.prisma.userPhysiology.findUnique({ where: { userId } });
+      const actionsToCreate: Array<{ type: PendingActionType; payload: any }> = [];
+
+      const maxHr = metrics['hr_max'];
+      const w20min = metrics['w20min']; 
+      const estimatedFtp = w20min ? round(w20min * 0.95) : null;
+
+      if (maxHr && (!currentPhysio?.maxHr || maxHr > currentPhysio.maxHr)) {
+        actionsToCreate.push({
+          type: 'PHYSIOLOGY_UPDATE',
+          payload: { metric: 'maxHr', oldValue: currentPhysio?.maxHr || null, newValue: maxHr, activityId },
+        });
+      }
+
+
+      if (estimatedFtp && (!currentPhysio?.ftp || estimatedFtp > currentPhysio.ftp)) {
+        actionsToCreate.push({
+          type: 'PHYSIOLOGY_UPDATE',
+          payload: { metric: 'ftp', oldValue: currentPhysio?.ftp || null, newValue: estimatedFtp, activityId },
+        });
+      }
+
+      if (actionsToCreate.length > 0) {
+        await this.prisma.pendingAction.createMany({
+          data: actionsToCreate.map(action => ({
+            userId,
+            type: action.type,
+            payload: action.payload,
+            status: 'PENDING',
+            expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), 
+          }))
+        });
+        
+        this.logger.log(`[Pending System] ${actionsToCreate.length} proposition(s) générée(s) pour l'utilisateur ${userId}`);
+
+        this.notificationGateway.sendToUser(userId, 'NEW_PENDING_ACTION', {
+          count: actionsToCreate.length 
+        });
+      }
+    } catch (error) {
+      this.logger.error(`[Pending System] Erreur lors de la génération des actions en attente :`, error);
+    }
+  }
   /**
    *
    *

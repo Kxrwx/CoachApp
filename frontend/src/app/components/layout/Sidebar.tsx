@@ -1,21 +1,38 @@
 "use client";
+
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Activity, BarChart3, Settings, Calendar, Upload, Target } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Activity, 
+  BarChart3, 
+  Settings, 
+  Calendar, 
+  Upload, 
+  Target, 
+  Inbox, 
+  Users, 
+  UserCheck 
+} from 'lucide-react';
 import Link from 'next/link';
-
-const menuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
-  { name: 'Mes Activitées', icon: Activity, href: '/activities' },
-  { name: 'Objectifs', icon: Target, href: '/goals' },
-  { name: 'Analyses Data', icon: BarChart3, href: '/analyses' },
-  { name: 'Calendrier', icon: Calendar, href: '/calendar' },
-  { name: 'Upload', icon: Upload, href: '/upload' },
-  { name: 'Paramètres', icon: Settings, href: '/setting' },
-];
+import { useAuth } from '@/app/context/AuthContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { isCoach } = useAuth();
+
+  const menuItems = [
+    { name: 'Dashboard', icon: LayoutDashboard, href: '/' },
+    { name: 'Mes Activitées', icon: Activity, href: '/activities' },
+    { name: 'Objectifs', icon: Target, href: '/goals' },
+    { name: 'Analyses Data', icon: BarChart3, href: '/analyses' },
+    { name: 'Calendrier', icon: Calendar, href: '/calendar' },
+    { name: 'Upload', icon: Upload, href: '/upload' },
+    { name: 'Mon Coach', icon: UserCheck, href: '/my-coach' },
+    ...(isCoach ? [{ name: 'Mes Athlètes', icon: Users, href: '/athletes' }] : []),
+    { name: 'Notifications', icon: Inbox, href: '/notification' },
+    { name: 'Paramètres', icon: Settings, href: '/setting' },
+  ];
 
   return (
     <aside className="fixed left-0 top-16 bottom-0 w-64 border-r border-slate-100 bg-white z-20">

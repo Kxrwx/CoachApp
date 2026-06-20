@@ -9,24 +9,33 @@ datasource db {
 }
 
 model User {
-  id              String           @id @default(uuid())
-  email           String           @unique
-  passwordHash    String
-  mfaEnabled      Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  stats           Stats[]
-  activities      Activity[]
-  computedMetrics ComputedMetric[]
-  devices         Device[]
-  goals           Goal[]
-  integrations    Integration[]
-  personalRecords PersonalRecord[]
-  plannedWorkouts PlannedWorkout[]
-  sessions        Session[]
+  id               String             @id @default(uuid())
+  email            String             @unique
+  passwordHash     String
+  mfaEnabled       Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  stats            Stats[]
+  activities       Activity[]
+  computedMetrics  ComputedMetric[]
+  devices          Device[]
+  goals            Goal[]
+  integrations     Integration[]
+  personalRecords  PersonalRecord[]
+  plannedWorkouts  PlannedWorkout[]
+  sessions         Session[]
 
-  physiology      UserPhysiology?
+  physiology       UserPhysiology?
   performanceStats PerformanceStats[]
+
+  pendingActions   PendingAction[]
+  roles            UserRole[]
+
+  coachingLinksAsCoach   CoachingLink[] @relation("CoachLinks")
+  coachingLinksAsAthlete CoachingLink[] @relation("AthleteLinks")
+
+
+  sentInvitations  Invitation[]
 }
 
 model Session {
@@ -191,8 +200,8 @@ model PlannedWorkout {
   isRecurring Boolean   @default(false)
   rrule       String?
   endDate     DateTime?
-  color       String    @default("#6366f1") // Ajouté car utilisé dans le service
-  status      String    @default("planned") // Ajouté car utilisé dans le service (ex: 'planned' | 'completed' | 'cancelled')
+  color       String    @default("#6366f1") 
+  status      String    @default("planned") 
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -271,7 +280,7 @@ model WebhookStrava {
 model Stats {
   id          String    @id @default(uuid())
   userId      String
-  periodType  String    // "month_2026_05", "year_2026", "ride_all"
+  periodType  String   
   periodStart DateTime?
   
   // Totaux agrégés (Strava + Upload)
@@ -284,24 +293,30 @@ model Stats {
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, periodType]) // Une seule ligne par période pour les stats globales
+  @@unique([userId, periodType]) 
   @@index([userId, periodType])
 }
 
 //Physio 
 
-model UserPhysiology {
-  id String @id @default(uuid())
+enum AthleteState {
+  NORMAL
+  FATIGUED
+  PAIN
+  INJURED
+}
 
-  userId String @unique
+model UserPhysiology {
+  id        String   @id @default(uuid())
+  userId    String   @unique
 
   restingHr Int?
-  maxHr Int?
+  maxHr     Int?
+  ftp       Float?
+  weight    Float?
+  height    Float?
 
-  ftp Float?
-
-  weight Float?
-  height Float?
+  state     AthleteState   @default(NORMAL) 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -342,4 +357,81 @@ model PerformanceStats {
 
   @@unique([userId, periodType, periodStart])
   @@index([userId, periodType, periodStart])
+}
+
+enum PendingActionType {
+  PHYSIOLOGY_UPDATE
+  TRAINING_PROPOSAL
+  GOAL_PROPOSAL
+}
+
+// 2. Définition de l'enum pour le statut
+enum ActionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model PendingAction {
+  id        String            @id @default(uuid())
+  userId    String
+  type      PendingActionType 
+  status    ActionStatus      @default(PENDING)
+  payload   Json
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  expiresAt DateTime
+  
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+// --- Système de Rôles (pour gérer le multi-casquette : Athlète, Coach, Admin) ---
+enum Role {
+  ATHLETE
+  COACH
+  ADMIN
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  role   Role
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+// --- Coaching & Invitations ---
+model CoachingLink {
+  id              String   @id @default(uuid())
+  coachId         String
+  athleteId       String
+  status          String   @default("ACTIVE")
+  
+  // Nouvelles permissions
+  shareActivities Boolean  @default(true)
+  sharePhysiology Boolean  @default(false)
+  shareRecords    Boolean  @default(true)
+  shareObjectives Boolean  @default(true)
+  shareAnalytics  Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  coach           User     @relation("CoachLinks", fields: [coachId], references: [id])
+  athlete         User     @relation("AthleteLinks", fields: [athleteId], references: [id])
+
+  @@unique([coachId, athleteId])
+}
+
+model Invitation {
+  id        String    @id @default(uuid())
+  token     String    @unique @default(uuid())
+  coachId   String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
 }
