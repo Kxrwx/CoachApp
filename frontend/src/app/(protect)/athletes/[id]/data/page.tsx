@@ -11,7 +11,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 
-// Interfaces pour le typage
 interface AnalyticsData {
   totals: {
     distance: number;
@@ -37,7 +36,6 @@ export default function AthleteDataPage() {
   const { id } = useParams();
   const router = useRouter();
 
-  // États locaux
   const [timeframe, setTimeframe] = useState<'weekly' | 'monthly'>('weekly');
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [records, setRecords] = useState<PersonalRecord[] | null>(null);
@@ -87,16 +85,13 @@ export default function AthleteDataPage() {
     );
   }
 
-  // Sélection du jeu de données actif pour Recharts
   const activeChartData = timeframe === 'weekly' ? analytics?.weekly : analytics?.monthly;
   
-  // Filtrage des records invalides (null, undefined ou 0)
   const validRecords = records?.filter(record => record.value != null && record.value !== 0) || [];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
-      {/* ================= EN-TÊTE PRINCIPAL ================= */}
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
           <BarChart3 className="text-indigo-600" size={18} />
@@ -104,7 +99,6 @@ export default function AthleteDataPage() {
         </h2>
       </div>
 
-      {/* ================= BLOC ANALYTICS ET Totaux ================= */}
       {errorStatus.analyticsForbidden ? (
         <div className="bg-slate-50 border border-dashed border-slate-200 rounded-[2.5rem] p-8 text-center text-slate-500">
           <EyeOff className="text-slate-300 mx-auto mb-3" size={28} />
@@ -114,7 +108,6 @@ export default function AthleteDataPage() {
       ) : (
         analytics && (
           <>
-            {/* Cartes de KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white rounded-[2.5rem] border border-slate-100 p-5 shadow-sm">
                 <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center mb-3 border border-blue-100">
@@ -150,14 +143,12 @@ export default function AthleteDataPage() {
               </div>
             </div>
 
-            {/* ================= ZONE GRAPHIQUE RECHARTS ================= */}
             <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">
                   Évolution des volumes kilométriques
                 </h3>
                 
-                {/* Sélecteur de période déplacé ici */}
                 <div className="relative">
                   <select 
                     value={timeframe}
@@ -188,7 +179,6 @@ export default function AthleteDataPage() {
                       tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} 
                     />
                     
-                    {/* Tooltip Personnalisé au survol */}
                     <Tooltip 
                       cursor={{ fill: '#f8fafc' }}
                       content={({ active, payload }) => {
@@ -230,7 +220,6 @@ export default function AthleteDataPage() {
         )
       )}
 
-      {/* ================= SECTION DES RECORDS PERSONNELS ================= */}
       <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm">
         <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-5 flex items-center gap-2">
           <Trophy className="text-amber-500" size={16} />

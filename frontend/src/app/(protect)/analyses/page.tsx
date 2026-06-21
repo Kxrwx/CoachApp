@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { 
   TrendingUp, TrendingDown, Minus, 
   Heart, Zap, Activity, Trophy, Scale, Calendar,
-  Gauge, ChevronRight, BarChart2, Navigation, Flame
+  Gauge, ChevronRight, Navigation, Flame
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -77,7 +77,6 @@ export default function DetailedDashboardPage() {
   const activeWeight = monthlyPhysio?.weight ?? globalPhysio?.weight;
   const currentWkg = activeFtp && activeWeight ? (activeFtp / activeWeight) : 0;
 
-  // --- CONTEXTES TEMPORELS ET COMPARAISONS HISTORIQUES ---
   const lastYear = currentYear - 1;
   const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
   const yearOfLastMonth = currentMonth === 1 ? currentYear - 1 : currentYear;
@@ -92,7 +91,6 @@ export default function DetailedDashboardPage() {
 
   const isFormPositive = statCurrentMonth.distance >= statLastMonth.distance && (statCurrentMonth.avgWatts || 0) >= (statLastMonth.avgWatts || 0);
 
-  // --- CONSTITUTION DES DONNÉES MENSUELLES POUR LES GRAPHES ---
   const monthlyData = stats.monthly
     ?.filter((m: any) => m.periodType.startsWith(`month_${currentYear}`))
     .sort((a: any, b: any) => new Date(a.periodStart).getTime() - new Date(b.periodStart).getTime())
@@ -107,7 +105,7 @@ export default function DetailedDashboardPage() {
   const averageDistance = monthlyData.length > 0 ? (monthlyData.reduce((acc: number, curr: any) => acc + curr.distance, 0) / monthlyData.length) : 0;
   const chartDataWithTrend = monthlyData.map((item: any) => ({ ...item, trend: parseFloat(averageDistance.toFixed(1)) }));
 
-  // --- EXTRACTION ET CLASSIFICATION DES RECORDS PERSONNELS ---
+
   const findRecord = (key: string) => records.find(r => r?.metric?.key === key);
 
   const powerRecordKeys = [
@@ -159,7 +157,6 @@ export default function DetailedDashboardPage() {
   return (
     <div className="space-y-8 p-6 bg-slate-50 min-h-screen pb-12">
       
-      {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">Tableau de Bord Performance</h1>
@@ -169,7 +166,6 @@ export default function DetailedDashboardPage() {
         </div>
       </div>
 
-      {/* ATHLETE HERO BANNER */}
       <section className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl border border-slate-900">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
@@ -207,7 +203,6 @@ export default function DetailedDashboardPage() {
         </div>
       </section>
 
-      {/* COMPARAISONS MENSUELLES & ANNUELLES */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -271,14 +266,12 @@ export default function DetailedDashboardPage() {
         </div>
       </section>
 
-      {/* --- SECTION DES RECORDS PERSONNELS ÉTENDUE --- */}
       <section className="space-y-6">
         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
           <Trophy className="text-amber-500" size={22} />
           <h3 className="text-lg font-black text-slate-800 tracking-tight">Records Personnels Historiques</h3>
         </div>
 
-        {/* 1. Records de Puissance */}
         <div className="space-y-3">
           <h4 className="text-xs font-black text-indigo-600 uppercase tracking-wider flex items-center gap-1">⚡ Courbe & Sommets de Puissance</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -286,7 +279,6 @@ export default function DetailedDashboardPage() {
           </div>
         </div>
 
-        {/* 2. Cardio & Cadence */}
         <div className="space-y-3">
           <h4 className="text-xs font-black text-rose-500 uppercase tracking-wider flex items-center gap-1">❤️ Capteurs & Fréquences</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -294,7 +286,6 @@ export default function DetailedDashboardPage() {
           </div>
         </div>
 
-        {/* 3. Endurance & Volume */}
         <div className="space-y-3">
           <h4 className="text-xs font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1">🏔️ Volume Max & Endurance</h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -303,10 +294,8 @@ export default function DetailedDashboardPage() {
         </div>
       </section>
 
-      {/* --- SECTION DES 4 GRAPHIQUES --- */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* GRAPH 1: Distance */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="font-black text-slate-800 mb-6 flex justify-between items-center">
             <span className="flex items-center gap-2">Progression Kilométrique</span>
@@ -332,7 +321,6 @@ export default function DetailedDashboardPage() {
           </div>
         </div>
 
-        {/* GRAPH 2: Dénivelé */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="font-black text-slate-800 mb-6 flex justify-between items-center">
             <span className="flex items-center gap-2">Dénivelé Mensuel Accumulé</span>
@@ -351,7 +339,6 @@ export default function DetailedDashboardPage() {
           </div>
         </div>
 
-        {/* GRAPH 3: Intensité & Puissance Moyenne (AJOUTÉ) */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="font-black text-slate-800 mb-6 flex justify-between items-center">
             <span className="flex items-center gap-2">Évolution de la Puissance Moyenne</span>
@@ -370,7 +357,6 @@ export default function DetailedDashboardPage() {
           </div>
         </div>
 
-        {/* GRAPH 4: Fréquence d'Entraînement (AJOUTÉ) */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="font-black text-slate-800 mb-6 flex justify-between items-center">
             <span className="flex items-center gap-2">Volume et Régularité des Sorties</span>

@@ -20,7 +20,6 @@ export async function api(endpoint: string, options: RequestInit = {}) {
   const url = `${BACKEND_URL}${endpoint}`;
   const headers = new Headers(options.headers);
 
-  // 1. On évite le cache intempestif (règle le problème du code 304 observé sur /me)
   headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
 
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
@@ -37,7 +36,6 @@ export async function api(endpoint: string, options: RequestInit = {}) {
     credentials: 'include', 
   });
 
-  // 2. 🔥 CORRECTION : On n'intercepte JAMAIS le 401 pour les routes critiques d'authentification
   const bypassRefreshRoutes = ['/auth/signin', '/auth/signup', '/auth/refresh', '/auth/logout'];
   const shouldBypass = bypassRefreshRoutes.includes(endpoint);
 

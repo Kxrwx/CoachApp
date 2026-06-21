@@ -99,7 +99,6 @@ export default function HomePage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-4 lg:p-6">
       
-      {/* --- BANDEAU HEADER --- */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
@@ -120,7 +119,6 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* --- GRILLE DE STATS DU MOIS --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-start mb-3">
@@ -165,7 +163,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* --- SECTION PR & PHYSIOLOGIE --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -297,10 +294,8 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* --- SECTION HISTORIQUE & SÉANCES PLANIFIÉES --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* BLOC : DERNIÈRES ACTIVITÉS */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
@@ -315,9 +310,7 @@ export default function HomePage() {
             ) : (
               recentActivities.map((act: any, idx: number) => {
                 const name = act.stravaDetail?.name || (act.idStrava ? "Activité Strava" : "Activité importée");
-                // Extraction de la distance (en mètres)
                 const rawDistance = act.stravaDetail?.distance || act.uploadDetail?.distance || 0;
-                // Conversion en kilomètres
                 const distanceKm = rawDistance / 1000;
                 
                 const type = act.stravaDetail?.type || (act.idUpload ? "FIT File" : "Workout");
@@ -352,7 +345,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* BLOC : FUTURES SÉANCES */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
@@ -394,7 +386,6 @@ export default function HomePage() {
 
       </div>
 
-      {/* --- CARRIÈRE TOUTES PÉRIODES --- */}
       {stats?.allTime && (
         <div className="bg-white px-6 py-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs font-semibold text-slate-500 shadow-sm">
           <span className="flex items-center gap-1"><Star size={14} className="text-amber-500" /> Volume de carrière cumulé (Strava + Upload)</span>

@@ -8,7 +8,7 @@ import { fr } from "date-fns/locale";
 import { api } from "@/lib/api";
 
 export default function AthleteActivitiesListPage() {
-  const { id } = useParams(); // ID de l'athlète
+  const { id } = useParams(); 
   const router = useRouter();
   
   const [activities, setActivities] = useState<any[]>([]);
@@ -18,7 +18,6 @@ export default function AthleteActivitiesListPage() {
   const fetchActivities = async (page = 1) => {
     setLoading(true);
     try {
-      // Appel de la route avec le paramètre de pagination
       const res = await api(`/coaching/athletes/${id}/activities?page=${page}&limit=20`);
       if (res.ok) {
         const json = await res.json();
@@ -39,7 +38,6 @@ export default function AthleteActivitiesListPage() {
   return (
     <div className="max-w-5xl mx-auto pb-20 px-4 pt-8 animate-fadeIn">
       
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <button 
@@ -56,7 +54,6 @@ export default function AthleteActivitiesListPage() {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex h-64 w-full items-center justify-center bg-white rounded-3xl border border-slate-100 shadow-sm">
           <Loader2 className="animate-spin text-indigo-500" size={32} />
@@ -69,7 +66,6 @@ export default function AthleteActivitiesListPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* List of Activities */}
           {activities.map((activity) => (
             <div 
               key={activity.id}
@@ -113,7 +109,6 @@ export default function AthleteActivitiesListPage() {
             </div>
           ))}
 
-          {/* Pagination Controls */}
           {meta.totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8 pt-4">
               <button 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react"; // ❌ Supprimé: useEffect
+import React, { useState, useCallback } from "react"; 
 
 import ActivityOverview from "./sections/ActivityOverview";
 import ActivityProfileChart from "./sections/ActivityProfileChart";
@@ -10,7 +10,6 @@ import ActivityZoneDonut from "./sections/ActivityZoneDonut";
 
 import { useActivityAnalysis } from "./hooks/useActivityAnalysis";
 import { useZoneDistribution } from "./hooks/useZoneDistribution";
-// ❌ Supprimé: import { api } from "@/lib/api";
 
 interface UploadViewProps {
   fitStats: any;
@@ -30,11 +29,7 @@ export default function UploadView({
   ftpFallback = null,
 }: UploadViewProps) {
 
-  /*
-  |--------------------------------------------------------------------------
-  | SELECTION PLAGE
-  |--------------------------------------------------------------------------
-  */
+
   const [selection, setSelection] = useState<{
     startIndex: number | null;
     endIndex: number | null;
@@ -54,11 +49,7 @@ export default function UploadView({
   const isRangeActive =
     selection.startIndex !== null && selection.endIndex !== null;
 
-  /*
-  |--------------------------------------------------------------------------
-  | ANALYSE ACTIVITÉ
-  |--------------------------------------------------------------------------
-  */
+
   const {
     unifiedSeries,
     availableMetrics,
@@ -69,28 +60,14 @@ export default function UploadView({
     powerStats,
   } = useActivityAnalysis(records, selection);
 
-  /*
-  |--------------------------------------------------------------------------
-  | PHYSIOLOGY (Calculé directement à la volée via les props)
-  |--------------------------------------------------------------------------
-  */
-  // ❌ Supprimé: Les useState et le gros useEffect avec appel API
   const fcMax = activity?.physio?.maxHr ?? activity?.physio?.hrMax ?? fcMaxFallback;
   const ftp = activity?.physio?.ftp ?? ftpFallback;
 
-  /*
-  |--------------------------------------------------------------------------
-  | DISTRIBUTION ZONES (pour le donut)
-  |--------------------------------------------------------------------------
-  */
+
   const { hrDistribution, powerDistribution, hrTotalMs, powerTotalMs } =
     useZoneDistribution(unifiedSeries, fcMax, ftp);
 
-  /*
-  |--------------------------------------------------------------------------
-  | RENDER
-  |--------------------------------------------------------------------------
-  */
+
   return (
     <div className="space-y-6">
       <ActivityOverview

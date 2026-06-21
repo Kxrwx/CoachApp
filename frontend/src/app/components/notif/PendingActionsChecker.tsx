@@ -48,10 +48,8 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
     return () => { socket.disconnect(); };
   }, [userId, WS_URL, fetchLatestAction]);
 
-  // Ignorer : ferme le popup, reste PENDING en base
   const handleDismiss = () => setIsOpen(false);
 
-  // Refuser ou Accepter : appel API + ferme
   const handleResolve = async (status: 'ACCEPTED' | 'REJECTED') => {
     if (!action) return;
     try {
@@ -81,7 +79,6 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] transition-opacity">
       <div className="bg-white p-6 rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 animate-in fade-in zoom-in duration-200">
 
-        {/* HEADER */}
         <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           {isTraining && <Dumbbell className="text-indigo-600" size={22} />}
           {isGoal && <Target className="text-emerald-600" size={22} />}
@@ -92,7 +89,6 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
           {!isTraining && !isGoal && 'Nouveau record détecté !'}
         </h3>
 
-        {/* CONTENU */}
         <div className="mt-4">
           {isTraining && (
             <div className="space-y-3">
@@ -141,9 +137,7 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
           )}
         </div>
 
-        {/* BOUTONS */}
         <div className="mt-6 flex justify-end gap-3">
-          {/* Ignorer : reste PENDING, ferme juste le popup */}
           <button
             onClick={handleDismiss}
             className="px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"
@@ -151,7 +145,6 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
             Ignorer
           </button>
 
-          {/* Refuser : REJECTED persisté en base — uniquement pour les propositions */}
           {(isTraining || isGoal) && (
             <button
               onClick={() => handleResolve('REJECTED')}
@@ -161,7 +154,6 @@ export default function PendingActionsChecker({ userId }: { userId: string }) {
             </button>
           )}
 
-          {/* Accepter */}
           <button
             onClick={() => handleResolve('ACCEPTED')}
             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm"

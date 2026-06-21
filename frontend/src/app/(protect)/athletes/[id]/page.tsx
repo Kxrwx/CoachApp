@@ -41,7 +41,7 @@ interface AthleteOverviewData {
     date: string;
     distance: number;
     duration: number;
-    elevation: number; // ✨ Ajouté depuis le nouveau mapping backend
+    elevation: number;
   }[] | null;
   upcomingPlanning: {
     id: string;
@@ -118,10 +118,8 @@ export default function AthleteOverviewPage() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
       
-      {/* ================= COLONNE PRINCIPALE (GAUCHE & MILIEU) ================= */}
       <div className="xl:col-span-2 space-y-6">
         
-        {/* Carte État de Forme Général */}
         {permissions.sharePhysiology && physio?.state && (
           <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">État de forme actuel</h2>
@@ -164,7 +162,6 @@ export default function AthleteOverviewPage() {
           </div>
         )}
 
-        {/* Résumé de la semaine d'entraînement */}
         {permissions.shareActivities && (
           <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
@@ -200,7 +197,6 @@ export default function AthleteOverviewPage() {
           </div>
         )}
 
-        {/* Dernière Activité Enregistrée */}
         {permissions.shareActivities && lastActivity && (
           <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Dernière activité synchronisée (Fichier)</h2>
@@ -221,7 +217,6 @@ export default function AthleteOverviewPage() {
                 </div>
               </div>
 
-              {/* Métriques enrichies avec le Dénivelé (D+) */}
               <div className="grid grid-cols-3 gap-4 sm:gap-6 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 shrink-0 text-center sm:text-left">
                 <div>
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Distance</p>
@@ -244,16 +239,13 @@ export default function AthleteOverviewPage() {
         )}
       </div>
 
-      {/* ================= COLONNE SECONDAIRE (DROITE) ================= */}
       <div className="space-y-6">
         
-        {/* Profil Physiologique complet */}
         <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5">Profil Physiologique</h2>
           
           {permissions.sharePhysiology && physio ? (
             <div className="space-y-2.5">
-              {/* FTP */}
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 border border-slate-100/50">
                 <div className="flex items-center gap-2.5">
                   <Flame size={16} className="text-amber-500" />
@@ -262,7 +254,6 @@ export default function AthleteOverviewPage() {
                 <span className="text-xs font-black text-slate-900 bg-white border border-slate-200 shadow-sm px-2.5 py-1 rounded-lg">{physio.ftp ? `${physio.ftp} W` : '--'}</span>
               </div>
 
-              {/* FC Repos */}
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 border border-slate-100/50">
                 <div className="flex items-center gap-2.5">
                   <Heart size={16} className="text-rose-500" />
@@ -271,7 +262,6 @@ export default function AthleteOverviewPage() {
                 <span className="text-xs font-black text-slate-900 bg-white border border-slate-200 shadow-sm px-2.5 py-1 rounded-lg">{physio.restingHr ? `${physio.restingHr} bpm` : '--'}</span>
               </div>
 
-              {/* FC Max */}
               {physio.maxHr && (
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 border border-slate-100/50">
                   <div className="flex items-center gap-2.5">
@@ -282,7 +272,6 @@ export default function AthleteOverviewPage() {
                 </div>
               )}
 
-              {/* Poids */}
               {physio.weight && (
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 border border-slate-100/50">
                   <div className="flex items-center gap-2.5">
@@ -303,7 +292,6 @@ export default function AthleteOverviewPage() {
           )}
         </div>
 
-        {/* Prochain Objectif */}
         {permissions.shareObjectives && nextObjective && (
           <div className="bg-indigo-600 rounded-[2.5rem] border border-indigo-500 p-6 shadow-sm text-white relative overflow-hidden">
             <div className="absolute -top-2 -right-2 p-4 opacity-10 rotate-12">
@@ -320,7 +308,6 @@ export default function AthleteOverviewPage() {
           </div>
         )}
 
-        {/* Menu de navigation rapide interne */}
         <div className="bg-white rounded-[2.5rem] border border-slate-100 p-3 shadow-sm space-y-1">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2 mb-1">Raccourcis</h3>
           

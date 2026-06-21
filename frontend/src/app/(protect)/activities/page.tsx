@@ -58,26 +58,21 @@ export default function ActivitiesPage() {
         </Link>
       </div>
 
-      {/* LISTE DES ACTIVITÉS */}
       <div className="grid gap-4">
         {activities.map((activity) => {
-          // 1. Déterminer le nom de l'activité
           const activityName =
             activity.stravaDetail?.name ||
             activity.uploadDetail?.name ||
             "Activité manuelle";
 
-          // 2. Calcul de la distance spécifique par source
           const stravaDist = activity.stravaDetail?.distance;
           const uploadDist = activity.uploadDetail?.distance;
           
           let formattedDistance = null;
 
           if (stravaDist) {
-            // Strava est en mètres -> conversion en km
             formattedDistance = (stravaDist / 1000).toFixed(2) + " km";
           } else if (uploadDist) {
-            // Upload est déjà en km -> affichage direct
             formattedDistance = Number(uploadDist).toFixed(2) + " km";
           }
 
@@ -87,7 +82,6 @@ export default function ActivitiesPage() {
               href={`/activities/${activity.id}`}
               className="group relative bg-white border border-slate-100 p-6 rounded-[2rem] hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/50 transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-6"
             >
-              {/* GAUCHE : Icône + Date + Titre */}
               <div className="flex items-start gap-5 flex-1">
                 <div className="p-4 bg-slate-50 rounded-2xl text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors shrink-0">
                   <ActivityIcon size={24} />
@@ -101,18 +95,15 @@ export default function ActivitiesPage() {
                       {format(new Date(activity.startDate), "EEEE dd MMMM yyyy", { locale: fr })}
                     </p>
                   </div>
-                  {/* Titre entier sans line-clamp */}
                   <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter leading-snug break-words">
                     {activityName}
                   </h3>
                 </div>
               </div>
 
-              {/* DROITE : Stats + Sources + Bouton Fleche */}
               <div className="flex items-center justify-between md:justify-end gap-8 shrink-0 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
                 <div className="flex items-center gap-6">
                   
-                  {/* Affichage dynamique de la distance si elle existe */}
                   {formattedDistance && (
                     <div className="text-left">
                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
@@ -124,7 +115,7 @@ export default function ActivitiesPage() {
                     </div>
                   )}
 
-                  {/* Badges de provenance */}
+
                   <div className="flex items-center gap-3 border-l border-slate-100 pl-6 h-8">
                     {activity.idStrava && (
                       <FontAwesomeIcon 
@@ -141,7 +132,6 @@ export default function ActivitiesPage() {
                   </div>
                 </div>
 
-                {/* Bouton d'action */}
                 <div className="p-2 bg-slate-50 rounded-full text-slate-300 group-hover:bg-slate-900 group-hover:text-white transition-all">
                   <ArrowUpRight size={20} />
                 </div>
@@ -150,7 +140,6 @@ export default function ActivitiesPage() {
           );
         })}
 
-        {/* État vide si aucune activité */}
         {!loading && activities.length === 0 && (
           <div className="text-center py-16 bg-white border border-slate-100 rounded-[2rem]">
             <p className="text-slate-500 font-medium">Aucune activité trouvée dans votre historique.</p>

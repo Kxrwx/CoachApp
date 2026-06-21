@@ -57,9 +57,6 @@ export default function ActivityRangeStats({
   return (
     <div className="bg-white border border-slate-200/60 rounded-[2.5rem] p-8 shadow-sm">
 
-      {/* ------------------------------------------------------------------ */}
-      {/* HEADER                                                              */}
-      {/* ------------------------------------------------------------------ */}
 
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -89,9 +86,6 @@ export default function ActivityRangeStats({
         )}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* MINI STATS                                                          */}
-      {/* ------------------------------------------------------------------ */}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 

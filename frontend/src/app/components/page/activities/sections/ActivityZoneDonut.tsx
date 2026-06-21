@@ -5,12 +5,6 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Heart, Zap } from "lucide-react";
 import { MiniStat } from "../../../UICores";
 
-/*
-|--------------------------------------------------------------------------
-| TYPES
-|--------------------------------------------------------------------------
-*/
-
 interface Zone {
   id: number;
   label: string;
@@ -26,11 +20,6 @@ interface ZoneSlice {
   distanceKm: number;
 }
 
-/*
-|--------------------------------------------------------------------------
-| HELPERS
-|--------------------------------------------------------------------------
-*/
 
 function formatDuration(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -44,11 +33,6 @@ function formatDuration(ms: number) {
   ].filter(Boolean).join(":");
 }
 
-/*
-|--------------------------------------------------------------------------
-| CUSTOM TOOLTIP RECHARTS
-|--------------------------------------------------------------------------
-*/
 
 function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
@@ -70,19 +54,12 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| DONUT UNIQUE avec stats globales
-|--------------------------------------------------------------------------
-*/
-
 interface DonutPanelProps {
   title: string;
   icon: React.ReactNode;
   accentColor: string;
   slices: ZoneSlice[];
   totalMs: number;
-  // Stats globales
   avgValue: number | null;
   maxValue: number | null;
   unit: string;
@@ -113,12 +90,10 @@ function DonutPanel({
   return (
     <div className="flex flex-col items-center gap-4">
 
-      {/* Titre */}
       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest" style={{ color: accentColor }}>
         {icon}{title}
       </div>
 
-      {/* Donut */}
       <div className="relative w-[200px] h-[200px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -150,7 +125,6 @@ function DonutPanel({
           </PieChart>
         </ResponsiveContainer>
 
-        {/* Centre */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           {activeSlice ? (
             <>
@@ -170,7 +144,6 @@ function DonutPanel({
         </div>
       </div>
 
-      {/* Légende inline */}
       <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
         {data.map((entry, i) => (
           <div
@@ -186,7 +159,6 @@ function DonutPanel({
         ))}
       </div>
 
-      {/* Stats globales */}
       {(avgValue !== null || maxValue !== null) && (
         <div className="grid grid-cols-2 gap-3 w-full mt-2">
           {avgValue !== null && (
@@ -201,11 +173,6 @@ function DonutPanel({
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| MAIN
-|--------------------------------------------------------------------------
-*/
 
 interface ActivityZoneDonutProps {
   hrDistribution: ZoneSlice[];
@@ -213,7 +180,6 @@ interface ActivityZoneDonutProps {
   hrTotalMs: number;
   powerTotalMs: number;
   availableMetrics: { hr: boolean; power: boolean };
-  // Stats globales passées depuis useActivityAnalysis
   heartStats: { avg: number; max: number } | null;
   powerStats: { avg: number; max: number } | null;
 }

@@ -34,13 +34,10 @@ export default function AuthPage() {
         throw new Error(data.message || 'Une erreur est survenue');
       }
 
-      // 1. On stocke le token d'accès
       setAccessToken(data.access_token);
 
-      // 2. On déclenche l'événement pour la Navbar/Layout
       window.dispatchEvent(new Event('auth-sync'));
 
-      // 3. On redirige et on force la mise à jour des composants
       window.location.href = '/';
 
     } catch (err: any) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Target, Plus, Loader2, AlertCircle, Calendar, Flag, Activity, Trophy, X, Sparkles, History } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
@@ -12,7 +12,7 @@ import {
   PolarAngleAxis 
 } from "recharts";
 import { api } from '@/lib/api';
-// --- TYPES ---
+
 interface Metric {
   id: string;
   key: string;
@@ -47,8 +47,6 @@ interface Goal {
   targets: GoalTarget[];
 }
 
-// Étape 1 : sélection du template (ou "libre")
-// Étape 2 : configuration nom / dates / valeur cible
 type ModalStep = 'template-select' | 'configure';
 
 const getDefaultProposalData = (firstMetricId = "") => ({
@@ -58,13 +56,12 @@ const getDefaultProposalData = (firstMetricId = "") => ({
   endDate: format(addMonths(new Date(), 1), 'yyyy-MM-dd'),
   metricId: firstMetricId,
   targetValue: "" as number | "",
-  // templateId gardé pour pré-remplir le nom, pas d'évaluation côté coach
   templateId: undefined as string | undefined,
 });
-// --- GRAPHIQUE : PR vs Cible ---
+
 const PrVsTargetRing = ({
-  target, // Valeur de base / actuelle (ex: le PR ou 0 par défaut)
-  targetValue, // Valeur cible (le 100%)
+  target,
+  targetValue,
   size = 110,
 }: {
   target: number;
@@ -74,8 +71,6 @@ const PrVsTargetRing = ({
   const currentVal = Number(target) > 0 ? Number(target) : 0;
   const goalVal = Number(targetValue) > 0 ? Number(targetValue) : 0;
   
-  // Calcul : (Actuel / Cible) * 100
-  // On s'assure que goalVal est supérieur à 0 pour éviter la division par zéro
   const percentage = goalVal > 0 ? Math.min(Math.round((currentVal / goalVal) * 100), 100) : 0;
   const chartColor = percentage >= 100 ? "#10b981" : "#4f46e5";
   const chartData = [{ value: percentage, fill: chartColor }];
@@ -104,10 +99,10 @@ const PrVsTargetRing = ({
     </div>
   );
 };
-// --- GRAPHIQUE PROGRESSION sur les cards d'objectifs ---
+
 const ProgressRing = ({
-  target, // Valeur cible (le 100%)
-  current, // Valeur de base / actuelle
+  target,
+  current, 
   size = 90,
 }: {
   target: number;
@@ -117,8 +112,6 @@ const ProgressRing = ({
   const currentVal = current && current > 0 ? current : 0;
   const goalVal = target && target > 0 ? target : 0;
   
-  // Calcul : (Actuel / Cible) * 100
-  // On s'assure que goalVal est supérieur à 0 pour éviter la division par zéro
   const percentage = goalVal > 0 ? Math.min(Math.round((currentVal / goalVal) * 100), 100) : 0;
   const chartColor = percentage >= 100 ? "#10b981" : "#4f46e5";
   const chartData = [{ value: percentage, fill: chartColor }];
@@ -162,7 +155,6 @@ export default function AthleteGoalsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [proposalData, setProposalData] = useState(getDefaultProposalData());
 
-  // Métrique sélectionnée — dérivée du state
   const selectedMetric = metrics.find(m => m.id === proposalData.metricId) ?? null;
 
   useEffect(() => {
@@ -202,7 +194,6 @@ export default function AthleteGoalsPage() {
     fetchData();
   }, [athleteId]);
 
-  // --- HANDLERS MODALE ---
 
   const handleOpenForm = () => {
     setProposalData(getDefaultProposalData(metrics[0]?.id ?? ""));
@@ -216,7 +207,6 @@ export default function AthleteGoalsPage() {
     setModalStep('template-select');
   };
 
-  // Sélection d'un template → pré-rempli nom + metricId, passe à l'étape 2
   const handlePickTemplate = (template: Template) => {
     setProposalData(prev => ({
       ...prev,
@@ -228,7 +218,6 @@ export default function AthleteGoalsPage() {
     setModalStep('configure');
   };
 
-  // Objectif libre → étape 2, champs vides
   const handlePickFree = () => {
     setProposalData(prev => ({
       ...prev,
@@ -295,8 +284,6 @@ export default function AthleteGoalsPage() {
     }
   };
 
-  // --- ÉTATS DE CHARGEMENT / ERREUR ---
-
   if (loading) {
     return (
       <div className="bg-white rounded-[2.5rem] border border-slate-100 p-12 shadow-sm flex flex-col items-center justify-center">
@@ -322,12 +309,10 @@ export default function AthleteGoalsPage() {
     );
   }
 
-  // --- RENDU PRINCIPAL ---
 
   return (
     <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm relative">
 
-      {/* HEADER */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase tracking-tight italic">
@@ -347,7 +332,6 @@ export default function AthleteGoalsPage() {
         </button>
       </div>
 
-      {/* LISTE DES OBJECTIFS */}
       {goals.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
           <Flag className="text-slate-300 mx-auto mb-3" size={32} />
@@ -422,8 +406,6 @@ export default function AthleteGoalsPage() {
       )}
     </div>
 
-    {/* NOUVEAU : On n'affiche le graphique QUE si le PR existe et est > 0. 
-        On passe target.recordValue à "current" pour que le pourcentage se base sur le PR */}
     {target.recordValue !== null && target.recordValue > 0 && (
       <div className="shrink-0 bg-slate-50 rounded-xl p-2 border border-slate-100">
         <ProgressRing target={target.targetValue} current={target.recordValue} size={60} />
@@ -439,12 +421,10 @@ export default function AthleteGoalsPage() {
         </div>
       )}
 
-      {/* MODALE DE PROPOSITION */}
       {showProposalForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
 
-            {/* En-tête modale */}
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
@@ -464,7 +444,6 @@ export default function AthleteGoalsPage() {
               </button>
             </div>
 
-            {/* ── ÉTAPE 1 : Sélection du template ── */}
             {modalStep === 'template-select' && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-1">
@@ -502,11 +481,9 @@ export default function AthleteGoalsPage() {
               </div>
             )}
 
-            {/* ── ÉTAPE 2 : Configuration ── */}
             {modalStep === 'configure' && (
               <div className="space-y-5">
 
-                {/* Retour */}
                 <button
                   type="button"
                   onClick={handleBackToTemplates}
@@ -515,7 +492,7 @@ export default function AthleteGoalsPage() {
                   ← Revenir aux templates
                 </button>
 
-                {/* Intitulé */}
+  
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
                     Intitulé de l'objectif *
@@ -529,7 +506,6 @@ export default function AthleteGoalsPage() {
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
                     Description{" "}
@@ -544,7 +520,6 @@ export default function AthleteGoalsPage() {
                   />
                 </div>
 
-                {/* Dates */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -570,7 +545,6 @@ export default function AthleteGoalsPage() {
                   </div>
                 </div>
 
-                {/* Configuration cible + aperçu graphique */}
                 <div className="bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100 flex flex-col md:flex-row items-center gap-6">
 
                   <div className="flex-1 space-y-4 w-full">
@@ -578,7 +552,6 @@ export default function AthleteGoalsPage() {
                       Configuration de la cible
                     </span>
 
-                    {/* Sélecteur métrique — visible uniquement en mode libre */}
                     {!proposalData.templateId && (
                       <div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
@@ -598,7 +571,6 @@ export default function AthleteGoalsPage() {
                       </div>
                     )}
 
-                    {/* Si template sélectionné : affiche la métrique en lecture seule */}
                     {proposalData.templateId && selectedMetric && (
                       <div className="flex items-center gap-2 text-xs font-bold text-indigo-800 bg-white px-4 py-3 rounded-xl border border-indigo-100 shadow-sm">
                         <History size={14} className="text-indigo-400 shrink-0" />
@@ -607,7 +579,6 @@ export default function AthleteGoalsPage() {
                       </div>
                     )}
 
-                    {/* Valeur cible */}
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                         Valeur cible à atteindre *
@@ -636,7 +607,6 @@ export default function AthleteGoalsPage() {
                     </div>
                   </div>
 
-                  {/* Aperçu graphique en direct */}
                   <div className="shrink-0 bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm flex flex-col items-center justify-center">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
                       Aperçu direct
@@ -649,7 +619,6 @@ export default function AthleteGoalsPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"

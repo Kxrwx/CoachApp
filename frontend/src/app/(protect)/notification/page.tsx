@@ -4,7 +4,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Calendar, Dumbbell, Clock, Heart, Zap, Target, TrendingUp } from 'lucide-react';
 
-// --- Hook de compte à rebours ---
 function useCountdown(expiresAt: string) {
   const calculateTimeLeft = () => Math.max(0, new Date(expiresAt).getTime() - Date.now());
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
@@ -25,7 +24,6 @@ function useCountdown(expiresAt: string) {
   return { hours, minutes, seconds, isExpired: timeLeft <= 0 };
 }
 
-// --- Interface ---
 interface PendingAction {
   id: string;
   type: 'TRAINING_PROPOSAL' | 'GOAL_PROPOSAL' | 'METRIC_UPDATE';
@@ -34,7 +32,6 @@ interface PendingAction {
   payload: any;
 }
 
-// --- Helpers ---
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('fr-FR', {
     weekday: 'long',
@@ -43,7 +40,6 @@ function formatDate(dateStr: string) {
   });
 }
 
-// --- Composant icône selon le type ---
 function ActionIcon({ type, metric }: { type: PendingAction['type']; metric?: string }) {
   if (type === 'TRAINING_PROPOSAL') {
     return <div className="p-3 rounded-xl flex-shrink-0 bg-indigo-50 text-indigo-600"><Dumbbell size={24} /></div>;
@@ -59,7 +55,6 @@ function ActionIcon({ type, metric }: { type: PendingAction['type']; metric?: st
   );
 }
 
-// --- Contenu selon le type ---
 function ActionContent({ action }: { action: PendingAction }) {
   const { type, payload } = action;
 
@@ -106,7 +101,6 @@ function ActionContent({ action }: { action: PendingAction }) {
     );
   }
 
-  // METRIC_UPDATE
   const isHr = payload.metric === 'maxHr';
   return (
     <>
@@ -123,14 +117,12 @@ function ActionContent({ action }: { action: PendingAction }) {
   );
 }
 
-// --- Labels des boutons ---
 function getActionLabels(type: PendingAction['type']) {
   if (type === 'TRAINING_PROPOSAL') return { accept: 'Accepter', reject: 'Refuser' };
   if (type === 'GOAL_PROPOSAL') return { accept: "Accepter l'objectif", reject: 'Refuser' };
   return { accept: 'Mettre à jour', reject: 'Ignorer' };
 }
 
-// --- Composant Ligne Individuelle ---
 function NotificationItem({
   action,
   onResolve,
@@ -173,7 +165,6 @@ function NotificationItem({
   );
 }
 
-// --- Page Principale ---
 export default function NotificationsPage() {
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [loading, setLoading] = useState(true);

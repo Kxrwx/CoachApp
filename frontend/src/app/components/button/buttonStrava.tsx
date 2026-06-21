@@ -94,7 +94,6 @@ export default function StravaButton({ userStrava, onSyncComplete }: StravaButto
 
       {userStrava ? (
         <div className="flex flex-col sm:flex-row items-center gap-4">
-          {/* Badge Profil */}
           <div className="flex items-center gap-4 bg-white p-3 pr-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="relative">
               <img 
@@ -114,7 +113,6 @@ export default function StravaButton({ userStrava, onSyncComplete }: StravaButto
             </div>
           </div>
 
-          {/* Bouton Déconnexion */}
           <button
             onClick={handleDisconnect}
             disabled={isDisconnecting}

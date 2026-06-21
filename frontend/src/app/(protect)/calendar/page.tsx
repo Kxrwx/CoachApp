@@ -1,7 +1,6 @@
 "use client";
-//TODO : Fix la date des activités deja faire +1j et jour en haut du calendrier faux 
-//TODO : ajouter loading
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+//BUG : Fix la date des activités deja faire +1j et jour en haut du calendrier faux 
+import React, { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -57,10 +56,9 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<PlannedEvent[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   
-  // Modal states
   const [showEventForm, setShowEventForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [editingEventId, setEditingEventId] = useState<string | null>(null); // Null = Création, String = Modification
+  const [editingEventId, setEditingEventId] = useState<string | null>(null); 
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
 
   useEffect(() => {
@@ -102,7 +100,6 @@ export default function CalendarPage() {
     return days;
   }, [currentDate]);
 
-  // Fusionner et différencier activités et entraînements
   const getEventsForDate = (date: Date) => {
     const dateStr = date.toISOString().split("T")[0];
     
@@ -117,10 +114,7 @@ export default function CalendarPage() {
     return [...dayPlanned, ...dayActivities];
   };
 
-  // ----- ACTIONS SUR LE CALENDRIER -----
-
   const handleDayClick = (date: Date) => {
-    // Bloquer la création dans le passé
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (date < today) {
@@ -129,7 +123,7 @@ export default function CalendarPage() {
     }
 
     setSelectedDate(date);
-    setEditingEventId(null); // Mode Création
+    setEditingEventId(null); 
     setFormData(DEFAULT_FORM_DATA);
     setShowEventForm(true);
   };
@@ -157,7 +151,6 @@ export default function CalendarPage() {
     }
   };
 
-  // ----- DRAG AND DROP -----
 
   const handleDragStart = (e: React.DragEvent, item: any) => {
     if (item._itemType !== "planned") {
@@ -172,7 +165,6 @@ export default function CalendarPage() {
     const eventId = e.dataTransfer.getData("eventId");
     if (!eventId) return;
 
-    // Empêcher de glisser vers le passé
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (targetDate < today) {
@@ -194,7 +186,6 @@ export default function CalendarPage() {
     }
   };
 
-  // ----- ACTIONS MODAL (API) -----
 
   const handleSaveEvent = async () => {
     if (!selectedDate || !formData.title) return;
@@ -238,7 +229,6 @@ export default function CalendarPage() {
   const handleDeleteEvent = async () => {
     if (!editingEventId) return;
     
-    // NETTOYAGE SÉCURISÉ RECONNAISSANT L'UUID V4 COMPLET
     let realIdInDatabase = editingEventId;
 
     if (editingEventId.includes('_')) {
@@ -440,7 +430,6 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              {/* SECTION ENTRAÎNEMENT RÉCURRENT */}
               <div className="border-t border-slate-200 pt-4 mt-2">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input

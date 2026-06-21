@@ -43,7 +43,6 @@ export default function ActivityProfileChart({
   const isRangeActive =
     selection.startIndex !== null && selection.endIndex !== null;
 
-  // FIX 2 : z-index dynamique pour éviter que le thumb start passe derrière
   const startZIndex =
     (selection.startIndex ?? 0) >= (selection.endIndex ?? totalDataPoints - 1) - 1
       ? 6
@@ -62,9 +61,6 @@ export default function ActivityProfileChart({
         Analyse Synchronisée
       </h3>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* TOGGLES                                                             */}
-      {/* ------------------------------------------------------------------ */}
 
       <div className="flex flex-wrap gap-3 mb-6">
         {availableMetrics.speed && (
@@ -120,9 +116,7 @@ export default function ActivityProfileChart({
         )}
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* CHART                                                               */}
-      {/* ------------------------------------------------------------------ */}
+
 
       <div className="w-full h-[440px]">
         <ResponsiveContainer width="100%" height="100%">
@@ -172,7 +166,6 @@ export default function ActivityProfileChart({
               isAnimationActive={false}
             />
 
-            {/* FIX 3 : yAxisId="metric" sur toutes les Line */}
             {visibleMetrics.speed && (
               <Line
                 yAxisId="metric"
@@ -225,7 +218,6 @@ export default function ActivityProfileChart({
               />
             )}
 
-            {/* FIX 3 : yAxisId="metric" sur ReferenceArea et ReferenceLine */}
             {isRangeActive && (
               <>
                 <ReferenceArea
@@ -256,9 +248,6 @@ export default function ActivityProfileChart({
         </ResponsiveContainer>
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* RANGE SELECTOR BAR                                                  */}
-      {/* ------------------------------------------------------------------ */}
 
       <div className="mt-6 space-y-3">
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
@@ -271,10 +260,8 @@ export default function ActivityProfileChart({
 
               <div className="relative h-8 flex items-center">
 
-                {/* Track background */}
                 <div className="absolute w-full h-2 bg-slate-300 rounded-full" />
 
-                {/* Progress track (plage active) */}
                 {isRangeActive && (
                   <div
                     className="absolute h-2 bg-indigo-500 rounded-full"
@@ -285,7 +272,6 @@ export default function ActivityProfileChart({
                   />
                 )}
 
-                {/* FIX 2 : Start slider avec z-index dynamique */}
                 <input
                   type="range"
                   min="0"
@@ -301,7 +287,6 @@ export default function ActivityProfileChart({
                   className="absolute w-full h-2 top-3 appearance-none bg-transparent rounded-full cursor-pointer pointer-events-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-indigo-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-indigo-600 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md"
                 />
 
-                {/* FIX 2 : End slider avec z-index dynamique */}
                 <input
                   type="range"
                   min="0"
@@ -318,7 +303,7 @@ export default function ActivityProfileChart({
                 />
               </div>
 
-              {/* FIX 1 : Calcul correct des points sélectionnés */}
+
               {isRangeActive && (
                 <div className="flex justify-between mt-3 text-[11px] text-slate-500">
                   <span>{selection.startIndex}</span>
@@ -336,7 +321,6 @@ export default function ActivityProfileChart({
               )}
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2">
               {isRangeActive && (
                 <button

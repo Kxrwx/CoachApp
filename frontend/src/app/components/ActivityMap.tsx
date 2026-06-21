@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polyline, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { decode } from "@googlemaps/polyline-codec"; // npm install @googlemaps/polyline-codec
+import { decode } from "@googlemaps/polyline-codec"; 
 
-// Petit helper pour centrer la map automatiquement sur le tracé
 function ChangeView({ bounds }: { bounds: any }) {
   const map = useMap();
   if (bounds.length > 0) map.fitBounds(bounds, { padding: [20, 20] });

@@ -39,10 +39,9 @@ export function useZoneDistribution(
         if (d.heartRate == null) return false;
         return getZone(d.heartRate, fcMax, HR_ZONES).id === zone.id;
       });
-      // Distance estimée : vitesse moyenne du segment × durée
       const distanceKm = points.reduce((acc, d) => {
         const speedKmh = d.speed ?? 0;
-        return acc + speedKmh / 3600; // ~1s par point
+        return acc + speedKmh / 3600; 
       }, 0);
       return { zone, totalMs: points.length * 1000, distanceKm };
     });

@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-// Imports locaux
 import UploadView from "@/app/components/page/activities/UploadView";
 import { MetaRow } from "@/app/components/UICores";
 
@@ -25,7 +24,6 @@ export default function CoachActivityDetailPage() {
   useEffect(() => {
     const fetchAllCoachData = async () => {
       try {
-        // Chargement parallèle des deux routes sécurisées côté Coach
         const [resAct, resPhysio] = await Promise.all([
           api(`/coaching/athletes/${athleteId}/activities/${activityId}`),
           api(`/coaching/athletes/${athleteId}/physio`)
@@ -93,7 +91,6 @@ export default function CoachActivityDetailPage() {
   return (
     <div className="max-w-7xl mx-auto pb-20 px-4 pt-8 text-slate-900 animate-fadeIn">
       
-      {/* CONTROL BAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <button 
           onClick={() => router.back()} 
@@ -108,13 +105,10 @@ export default function CoachActivityDetailPage() {
         </div>
       </div>
 
-      {/* DASHBOARD GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* MAIN PANEL CONTENT (LEFT) */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* GPS Map Visualizer PlaceHolder */}
           <div className="h-[240px] sm:h-[300px] bg-slate-950 rounded-[2.5rem] overflow-hidden relative border border-slate-900 shadow-xl flex flex-col items-center justify-center gap-2 text-slate-500">
             <MapPin size={32} className="text-slate-800 animate-pulse" />
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-center px-6 leading-relaxed">
@@ -128,7 +122,6 @@ export default function CoachActivityDetailPage() {
             </div>
           </div>
 
-          {/* Rendu dynamique des charts et data FIT de l'athlète */}
           <UploadView 
             fitStats={fitStats} 
             charts={charts} 
@@ -137,10 +130,8 @@ export default function CoachActivityDetailPage() {
           />
         </div>
 
-        {/* SIDEBAR D'INFORMATIONS ACTIONS (RIGHT) */}
         <div className="space-y-6">
           
-          {/* Main Summary Card */}
           <div className="bg-slate-950 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
             
@@ -194,7 +185,6 @@ export default function CoachActivityDetailPage() {
             </div>
           </div>
 
-          {/* Profil Physiologique de l'athlète à la date de l'analyse */}
           {physio.ftp && (
             <div className="bg-white border border-slate-200/60 rounded-[2.5rem] p-8 shadow-sm">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
@@ -223,7 +213,7 @@ export default function CoachActivityDetailPage() {
             </div>
           )}
 
-          {/* Meta Cloud Storage Info */}
+
           <div className="bg-white border border-slate-200/60 rounded-[2.5rem] p-8 shadow-sm">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Fichiers Stockage Cloud</p>
             <div className="space-y-3">

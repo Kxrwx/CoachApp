@@ -5,11 +5,7 @@ import { computeMetricStats } from "../utils/activityStats";
 import { smoothAndFilterData } from "@/lib/utils";
 
 export function useActivityAnalysis(records: any[], selection: any) {
-  /*
-  |--------------------------------------------------------------------------
-  | DATASET NORMALISÉ
-  |--------------------------------------------------------------------------
-  */
+
 
   const unifiedSeries = useMemo(() => {
     const base = records
@@ -30,11 +26,7 @@ export function useActivityAnalysis(records: any[], selection: any) {
     return smoothAndFilterData(base, "speed", 20);
   }, [records]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | DATA DISPONIBLES
-  |--------------------------------------------------------------------------
-  */
+
 
   const availableMetrics = useMemo(() => {
     return {
@@ -45,11 +37,7 @@ export function useActivityAnalysis(records: any[], selection: any) {
     };
   }, [unifiedSeries]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | RANGE DATA
-  |--------------------------------------------------------------------------
-  */
+
 
   const rangedData = useMemo(() => {
     if (
@@ -65,11 +53,6 @@ export function useActivityAnalysis(records: any[], selection: any) {
     );
   }, [selection, unifiedSeries]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | STATS
-  |--------------------------------------------------------------------------
-  */
 
   const speedStats = useMemo(
     () => computeMetricStats(rangedData, "speed"),

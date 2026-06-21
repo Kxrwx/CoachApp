@@ -1,6 +1,5 @@
 "use client";
 
-//TODO : ajout d'un loading
 
 import React, { useState, useEffect } from "react";
 import {
@@ -218,13 +217,11 @@ export default function GoalsPage() {
     }
   };
 
-  // --- GRAPHIQUE INVERSÉ : PR vs CIBLE ---
-  // La cible (target) est le 100%, le PR est la valeur remplie
+
   const PrVsTargetRing = ({ target, pr, size = 120 }: { target: number, pr: number | null, size?: number }) => {
     const validPr = pr && pr > 0 ? pr : 0;
     const percentage = target > 0 ? Math.round((validPr / target) * 100) : 0;
     
-    // Si le PR dépasse la cible (objectif déjà explosé dans le passé), on met en vert
     const chartColor = percentage >= 100 ? "#10b981" : "#4f46e5";
     const chartData = [{ value: Math.min(percentage, 100), fill: chartColor }];
 
@@ -255,7 +252,6 @@ export default function GoalsPage() {
 
   return (
     <div className="space-y-6 p-6 bg-slate-50 min-h-screen">
-      {/* Top Bar */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-black text-slate-800 tracking-tight">Vos Objectifs</h1>
         <button
@@ -266,7 +262,6 @@ export default function GoalsPage() {
         </button>
       </div>
 
-      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {goals.map((goal) => {
           const target = goal.targets[0]; 
@@ -280,7 +275,6 @@ export default function GoalsPage() {
               onClick={() => handleOpenEditModal(goal)}
               className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5 md:p-6 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between gap-4 group"
             >
-              {/* Infos Gauche */}
               <div className="space-y-3 flex-1">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -302,7 +296,6 @@ export default function GoalsPage() {
                   </span>
                 </div>
 
-                {/* Cible brute */}
                 <div className="space-y-0.5">
                   <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">
                     Cible Fixée
@@ -312,7 +305,6 @@ export default function GoalsPage() {
                   </p>
                 </div>
 
-                {/* Badge Record PR */}
                 {prVal !== null && (
                   <div className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
                     <Trophy size={11} /> PR Actuel : {prVal} {unit}
@@ -320,7 +312,6 @@ export default function GoalsPage() {
                 )}
               </div>
 
-              {/* Graphique Droite: PR vs Cible */}
               <div className="shrink-0">
                 <PrVsTargetRing target={targetVal} pr={prVal} size={110} />
               </div>
@@ -335,7 +326,6 @@ export default function GoalsPage() {
         )}
       </div>
 
-      {/* Modal Form */}
       {showGoalForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto space-y-6">
@@ -355,7 +345,6 @@ export default function GoalsPage() {
               </div>
             </div>
 
-            {/* General Infos */}
             <div className="space-y-4 pb-4 border-b border-slate-100">
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Intitulé de l'objectif</label>
@@ -390,7 +379,6 @@ export default function GoalsPage() {
               </div>
             </div>
 
-            {/* MODE 1: Templates Selection */}
             {!formData.templateId && !formData.metricId && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -420,7 +408,6 @@ export default function GoalsPage() {
               </div>
             )}
 
-            {/* MODE 2 : Configuration Cible unique avec PR en vue Graphique en direct */}
             {(formData.templateId || formData.metricId) && (
               <div className="space-y-4 bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100 flex flex-col md:flex-row items-center gap-6">
                 
@@ -438,7 +425,6 @@ export default function GoalsPage() {
                   )}
 
                   <div className="space-y-3">
-                    {/* Saisie de la valeur cible (Sélecteur d'indicateur retiré) */}
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Valeur cible à atteindre</label>
                       <div className="flex items-center gap-2">
@@ -467,7 +453,6 @@ export default function GoalsPage() {
                   )}
                 </div>
 
-                {/* Graphique de prévisualisation en direct dans la modale */}
                 <div className="shrink-0 bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm flex flex-col items-center justify-center">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Aperçu direct</span>
                   <PrVsTargetRing target={formData.targetValue} pr={formData.recordValue} size={110} />
@@ -475,7 +460,6 @@ export default function GoalsPage() {
               </div>
             )}
 
-            {/* Validation Actions */}
             <div className="flex gap-3 pt-4 border-t border-slate-100">
               <button
                 type="button"

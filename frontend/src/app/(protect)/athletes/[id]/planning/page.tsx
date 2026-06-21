@@ -8,7 +8,6 @@ import {
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 
-// --- PRESETS POUR LA RÉCURRENCE (RRULE) ---
 const RRulePresets = [
   { label: "Tous les lundis", value: "FREQ=WEEKLY;BYDAY=MO" },
   { label: "Tous les mardis", value: "FREQ=WEEKLY;BYDAY=TU" },
@@ -33,7 +32,6 @@ export default function AthletePlanningPage() {
   const [selectedWorkout, setSelectedWorkout] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // --- ÉTATS POUR LA PROPOSITION ---
   const [isProposeModalOpen, setIsProposeModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -133,7 +131,6 @@ export default function AthletePlanningPage() {
   const isToday = (date: Date) => date.toDateString() === today.toDateString();
   const isWithinBounds = (date: Date) => date >= minDate && date <= maxDate;
 
-  // --- SOUMISSION DE LA PROPOSITION ---
   const handleProposeSubmit = async () => {
     if (!proposeForm.title || !proposeForm.scheduledDate) return;
     
@@ -191,7 +188,6 @@ export default function AthletePlanningPage() {
 
   return (
     <div className="space-y-6">
-      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
           <CalendarIcon className="text-indigo-600" /> Planning & Activités
@@ -219,13 +215,11 @@ export default function AthletePlanningPage() {
         </div>
       </div>
 
-      {/* LEGENDE */}
       <div className="flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-indigo-500" /><span className="text-slate-600">Workout planifié</span></div>
         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-500" /><span className="text-slate-600">Activité réalisée</span></div>
       </div>
 
-      {/* CALENDAR */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
           {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => (
@@ -263,7 +257,6 @@ export default function AthletePlanningPage() {
         </div>
       </div>
 
-      {/* ================= MODAL DE PROPOSITION (Basée sur ta référence) ================= */}
       {isProposeModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -284,7 +277,6 @@ export default function AthletePlanningPage() {
 
             <div className="space-y-4">
               
-              {/* Date */}
               <div>
                 <label className="text-sm font-bold text-slate-700 block mb-1">Date</label>
                 <input
@@ -295,7 +287,6 @@ export default function AthletePlanningPage() {
                 />
               </div>
 
-              {/* Titre */}
               <div>
                 <label className="text-sm font-bold text-slate-700 block mb-1">Titre</label>
                 <input
@@ -307,7 +298,6 @@ export default function AthletePlanningPage() {
                 />
               </div>
 
-              {/* Type */}
               <div>
                 <label className="text-sm font-bold text-slate-700 block mb-1">Type</label>
                 <select
@@ -323,7 +313,6 @@ export default function AthletePlanningPage() {
                 </select>
               </div>
 
-              {/* Heure & Durée */}
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="text-sm font-bold text-slate-700 block mb-1">Heure</label>
@@ -345,7 +334,6 @@ export default function AthletePlanningPage() {
                 </div>
               </div>
 
-              {/* Description / Instructions */}
               <div>
                 <label className="text-sm font-bold text-slate-700 block mb-1">Corps de la séance (Optionnel)</label>
                 <textarea
@@ -357,7 +345,6 @@ export default function AthletePlanningPage() {
                 />
               </div>
 
-              {/* SECTION ENTRAÎNEMENT RÉCURRENT */}
               <div className="border-t border-slate-200 pt-4 mt-2">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -405,7 +392,6 @@ export default function AthletePlanningPage() {
                 )}
               </div>
 
-              {/* COULEUR */}
               <div>
                 <label className="text-sm font-bold text-slate-700 block mb-2">Couleur</label>
                 <div className="flex gap-2">

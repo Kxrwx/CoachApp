@@ -4,8 +4,6 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { useRouter } from 'next/navigation';
 import { api, setAccessToken } from '@/lib/api';
 
-// --- Types & Interfaces ---
-
 export type Role = 'ATHLETE' | 'COACH' | 'ADMIN';
 
 interface UserRole {

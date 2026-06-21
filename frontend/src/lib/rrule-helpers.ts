@@ -54,13 +54,10 @@ export const RRulePresets = [
   },
 ];
 
-/**
- * Génère une règle RRULE personnalisée
- */
 export const generateCustomRRule = (
   frequency: "DAILY" | "WEEKLY" | "MONTHLY",
   interval: number = 1,
-  byDay?: string[] // ["MO", "WE", "FR"]
+  byDay?: string[] 
 ): string => {
   let rule = `FREQ=${frequency}`;
 
@@ -75,9 +72,6 @@ export const generateCustomRRule = (
   return rule;
 };
 
-/**
- * Convertit une règle RRULE en description lisible
- */
 export const parseRRuleToDescription = (rrule: string): string => {
   if (!rrule) return "";
 
@@ -87,7 +81,6 @@ export const parseRRuleToDescription = (rrule: string): string => {
     }
   }
 
-  // Parser personnalisé pour les règles non-standard
   const parts: string[] = [];
 
   if (rrule.includes("FREQ=DAILY")) {

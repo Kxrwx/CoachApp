@@ -15,7 +15,6 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // États pour la physiologie
   const [physioData, setPhysioData] = useState({
     restingHr: "",
     maxHr: "",
@@ -26,27 +25,22 @@ export default function SettingsPage() {
   });
   const [initialPhysio, setInitialPhysio] = useState<any>(null);
 
-  // Loaders
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPhysio, setIsSavingPhysio] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   
-  // Messages globaux (Sécurité / Compte)
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Messages spécifiques à la Physiologie
   const [showPhysioSuccess, setShowPhysioSuccess] = useState(false);
   const [physioSuccessMessage, setPhysioSuccessMessage] = useState("");
   const [physioError, setPhysioError] = useState<string | null>(null);
 
-  // Détection des changements
   const hasMfaChanged = user?.mfaEnabled !== mfaEnabled;
   const hasPasswordInput = newPassword.length > 0;
   const hasSecurityChanged = hasMfaChanged || hasPasswordInput;
   
-  // Changement spécifique à la physiologie (Comparaison robuste)
   const hasPhysioChanged = initialPhysio !== null && (
     physioData.restingHr !== initialPhysio.restingHr ||
     physioData.maxHr !== initialPhysio.maxHr ||
@@ -101,14 +95,12 @@ export default function SettingsPage() {
     </div>
   );
 
-  // Bouton 1 : Revenir sur les anciennes data (Resync/Annuler)
   const handleResyncPhysio = () => {
     if (initialPhysio) {
       setPhysioData({ ...initialPhysio });
     }
   };
 
-  // Bouton 2 : Calculer automatiquement les datas à partir des activités en BDD
   const handleCalculatePhysio = async () => {
     setIsCalculating(true);
     setPhysioError(null);
@@ -135,7 +127,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Bouton 3 : Enregistrer les métriques physiologiques actuelles
   const handleSavePhysio = async () => {
   if (!hasPhysioChanged) return;
 
@@ -169,7 +160,6 @@ export default function SettingsPage() {
     setIsSavingPhysio(false);
   }
 };
-  // Sauvegarde générale Sécurité
   const handleSaveSecurity = async () => {
     if (!hasSecurityChanged) return;
     
@@ -219,7 +209,6 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
-      {/* Header de page */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Paramètres</h2>
@@ -230,7 +219,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Flottant uniquement pour SÉCURITÉ */}
       {hasSecurityChanged && !error && (
          <div className="sticky top-4 z-50 mb-6 flex items-center justify-between gap-3 bg-indigo-50 p-4 rounded-xl border border-indigo-200 shadow-sm animate-in fade-in slide-in-from-top-2">
             <span className="text-sm font-bold text-indigo-800 tracking-tight">Modifications de sécurité non enregistrées.</span>
@@ -245,7 +233,6 @@ export default function SettingsPage() {
          </div>
       )}
 
-      {/* Alerte succès global (Sécurité) */}
       {showSuccess && (
         <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 size={18} />
@@ -253,7 +240,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Alerte erreur globale (Sécurité) */}
       {error && (
         <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 text-sm font-bold">
           {error}
@@ -261,7 +247,6 @@ export default function SettingsPage() {
       )}
 
       <div className="space-y-8">
-        {/* 1. Identifiants et Mot de passe */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
@@ -318,7 +303,6 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 2. Sécurité du compte */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
@@ -346,7 +330,6 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 3. Métriques Physiologiques */}
 <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
     <div className="flex items-center gap-3">
@@ -356,7 +339,6 @@ export default function SettingsPage() {
       <h3 className="font-bold text-slate-900 text-lg">Métriques Physiologiques</h3>
     </div>
 
-    {/* BOUTON permanent : Calculer automatiquement */}
     <button
       onClick={handleCalculatePhysio}
       disabled={isCalculating}
@@ -367,7 +349,6 @@ export default function SettingsPage() {
     </button>
   </div>
 
-  {/* Alerte spécifique succès Physiologie */}
   {showPhysioSuccess && (
     <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in">
       <CheckCircle2 size={18} />
@@ -375,7 +356,6 @@ export default function SettingsPage() {
     </div>
   )}
 
-  {/* Alerte spécifique erreur Physiologie */}
   {physioError && (
     <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 text-sm font-bold animate-in fade-in">
       {physioError}
@@ -434,7 +414,6 @@ export default function SettingsPage() {
         placeholder="ex: 180"
       />
     </div>
-    {/* Nouveau champ État */}
     <div>
       <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2 block">État actuel</label>
       <select
@@ -450,7 +429,6 @@ export default function SettingsPage() {
     </div>
   </div>
 
-  {/* Boutons contextuels d'Annulation et de Sauvegarde */}
   <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
     <button
       onClick={handleResyncPhysio}
@@ -479,7 +457,6 @@ export default function SettingsPage() {
   </div>
 </section>
 
-        {/* 4. Synchronisation Apps (Strava) */}
         <section className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
            <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-orange-50 rounded-lg text-[#FC4C02]">
@@ -493,7 +470,6 @@ export default function SettingsPage() {
           />
         </section>
 
-        {/* 5. Audit Système */}
         <section className="bg-slate-900 p-8 rounded-2xl text-white">
           <div className="flex items-center gap-3 mb-6">
             <Calendar className="text-indigo-400" size={20} />

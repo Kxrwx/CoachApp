@@ -58,7 +58,6 @@ export default function ActivityOverview({
         />
       </div>
 
-      {/* FIT INFOS */}
       <div className="bg-white border border-slate-200/60 rounded-[2.5rem] p-8 shadow-sm">
         <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
           <Activity size={14} />

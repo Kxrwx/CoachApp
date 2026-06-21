@@ -1,5 +1,5 @@
 // app/activities/[id]/page.tsx
-//TODO : fix "RideEngine" => z - index
+//BUG : fix "RideEngine" => z - index
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,7 +12,6 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import dynamic from "next/dynamic";
 
-// Imports locaux
 import StravaView from "../../../components/page/activities/StravaView";
 import UploadView from "../../../components/page/activities/UploadView";
 import { MetaRow } from "../../../components/UICores";

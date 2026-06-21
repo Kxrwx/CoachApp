@@ -6,11 +6,6 @@ import { Activity, Zap, Heart } from "lucide-react";
 import { MiniStat } from "../../../UICores";
 import { computeMetricStats } from "../utils/activityStats";
 
-/*
-|--------------------------------------------------------------------------
-| ZONES
-|--------------------------------------------------------------------------
-*/
 
 const HR_ZONES = [
   { id: 1, label: "Z1", name: "Récupération", pctMin: 0.00, pctMax: 0.60, color: "#94a3b8" },
@@ -46,11 +41,6 @@ interface Segment {
   totalMs: number;
 }
 
-/*
-|--------------------------------------------------------------------------
-| HELPERS
-|--------------------------------------------------------------------------
-*/
 
 function getZone(value: number, ref: number, zones: Zone[]): Zone {
   for (const z of zones) {
@@ -71,11 +61,6 @@ function formatDuration(ms: number) {
   ].filter(Boolean).join(":");
 }
 
-/*
-|--------------------------------------------------------------------------
-| ZONE BARS
-|--------------------------------------------------------------------------
-*/
 
 function ZoneBars({
   zones, distribution, totalMs, selectedZoneId, onZoneClick,
@@ -126,11 +111,6 @@ function ZoneBars({
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| MAIN
-|--------------------------------------------------------------------------
-*/
 
 export default function ActivityZoneChart({
   unifiedSeries,
@@ -150,7 +130,6 @@ export default function ActivityZoneChart({
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null);
   const [chartW, setChartW] = useState<number>(0);
 
-  // Le div est toujours dans le DOM (height=1 caché) pour que le ref soit disponible
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -181,12 +160,6 @@ export default function ActivityZoneChart({
   const currentRef    = tab === "hr" ? fcMax : ftp;
   const refMissing    = !currentRef;
 
-  /*
-  |--------------------------------------------------------------------------
-  | SERIES
-  |--------------------------------------------------------------------------
-  */
-
   const altNormSeries = useMemo(() => {
     const vals = unifiedSeries.map((d) => d.altitude).filter((v) => v != null);
     if (!vals.length) return unifiedSeries.map((d) => ({ ...d, altNorm: null }));
@@ -207,11 +180,6 @@ export default function ActivityZoneChart({
     });
   }, [altNormSeries, currentRef, currentMetric, currentZones]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | SEGMENTS
-  |--------------------------------------------------------------------------
-  */
 
   const zoneSegments: Segment[] = useMemo(() => {
     const segs: Segment[] = [];
@@ -231,12 +199,6 @@ export default function ActivityZoneChart({
     return segs;
   }, [blockSeries]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | DISTRIBUTION
-  |--------------------------------------------------------------------------
-  */
-
   const distribution = useMemo(() =>
     currentZones.map((zone) => ({
       zone,
@@ -249,12 +211,6 @@ export default function ActivityZoneChart({
     () => distribution.reduce((acc, d) => acc + d.totalMs, 0),
     [distribution]
   );
-
-  /*
-  |--------------------------------------------------------------------------
-  | INTERACTIONS
-  |--------------------------------------------------------------------------
-  */
 
   const handleSegmentClick = useCallback((segIdx: number) => {
     setSelectedZoneId(null);
@@ -276,12 +232,6 @@ export default function ActivityZoneChart({
     setTooltip(null);
   }, []);
 
-  /*
-  |--------------------------------------------------------------------------
-  | SÉLECTION
-  |--------------------------------------------------------------------------
-  */
-
   const selectedSeg  = selectedSegIdx !== null ? zoneSegments[selectedSegIdx] ?? null : null;
   const selectedZone = selectedSeg ? currentZones.find((z) => z.id === selectedSeg.zoneId) ?? null : null;
 
@@ -298,16 +248,9 @@ export default function ActivityZoneChart({
   const hoveredSeg  = hoveredSegIdx !== null ? zoneSegments[hoveredSegIdx] ?? null : null;
   const hoveredZone = hoveredSeg ? currentZones.find((z) => z.id === hoveredSeg.zoneId) ?? null : null;
 
-  /*
-  |--------------------------------------------------------------------------
-  | RENDER
-  |--------------------------------------------------------------------------
-  */
-
   return (
     <div className="bg-white border border-slate-200/60 rounded-[2.5rem] p-8 shadow-sm space-y-6">
 
-      {/* HEADER */}
       <div className="flex items-center justify-between">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
           <Activity size={14} />Analyse par zones
@@ -340,10 +283,6 @@ export default function ActivityZoneChart({
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* div ref TOUJOURS dans le DOM (height=1 si refMissing)              */}
-      {/* Garantit que useEffect peut mesurer clientWidth dès le mount       */}
-      {/* ------------------------------------------------------------------ */}
       <div
         ref={chartRef}
         className="relative w-full overflow-hidden"
@@ -354,7 +293,6 @@ export default function ActivityZoneChart({
       >
         {!refMissing && (
           <>
-            {/* SVG overlay — blocs de zones interactifs */}
             <svg
               className="absolute inset-0 z-10"
               width="100%"
@@ -401,7 +339,6 @@ export default function ActivityZoneChart({
               })}
             </svg>
 
-            {/* Profil altitude via Recharts en fond */}
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={blockSeries} margin={MARGIN}>
                 <YAxis yAxisId="main" domain={[0, BLOCK_Y_MAX]} hide />
@@ -419,7 +356,6 @@ export default function ActivityZoneChart({
               </ComposedChart>
             </ResponsiveContainer>
 
-            {/* Tooltip hover segment */}
             {hoveredSeg && hoveredZone && tooltip && (
               <div
                 className="absolute pointer-events-none z-20 rounded-xl px-3 py-2.5 shadow-lg"
@@ -454,7 +390,6 @@ export default function ActivityZoneChart({
             {tab === "hr" ? `FC max : ${fcMax} bpm` : `FTP : ${ftp} W`}
           </div>
 
-          {/* ZONE BARS */}
           <ZoneBars
             zones={currentZones}
             distribution={distribution}
@@ -463,12 +398,8 @@ export default function ActivityZoneChart({
             onZoneClick={handleZoneBarClick}
           />
 
-          {/* ---------------------------------------------------------------- */}
-          {/* STATS : segment sélectionné / zone sélectionnée / vue globale   */}
-          {/* ---------------------------------------------------------------- */}
 
           {selectedSeg && selectedZone && segStats ? (
-            /* Segment individuel */
             <div
               className="rounded-2xl p-6 space-y-4 transition-all"
               style={{ backgroundColor: selectedZone.color + "11", border: `1px solid ${selectedZone.color}44` }}
@@ -499,7 +430,6 @@ export default function ActivityZoneChart({
             </div>
 
           ) : selectedZoneId !== null ? (() => {
-            /* Zone entière */
             const zone      = currentZones.find((z) => z.id === selectedZoneId)!;
             const zoneDist  = distribution.find((d) => d.zone.id === selectedZoneId);
             const zoneData  = blockSeries.filter((d) => d.zoneId === selectedZoneId);
@@ -537,7 +467,6 @@ export default function ActivityZoneChart({
               </div>
             );
           })() : (
-            /* Vue globale */
             <div className="rounded-2xl p-6 space-y-4 bg-slate-50 border border-slate-200">
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Vue globale — {tab === "hr" ? "Fréquence cardiaque" : "Puissance"}

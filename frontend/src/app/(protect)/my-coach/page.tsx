@@ -45,7 +45,6 @@ export default function MyCoachPage() {
       }
 
       const data = JSON.parse(text);
-      // -----------------------------
 
       setCoachLink(data);
     } catch (err) {

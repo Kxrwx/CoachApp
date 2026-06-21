@@ -14,7 +14,6 @@ export default function UploadActivityPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Gestion du Drag & Drop
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -47,7 +46,6 @@ export default function UploadActivityPage() {
 
     const formData = new FormData();
     formData.append('file', file);
-    // On envoie la date actuelle par défaut, ou on pourrait ajouter un sélecteur
     formData.append('startDate', new Date().toISOString());
 
     try {
@@ -63,7 +61,7 @@ export default function UploadActivityPage() {
       
       setTimeout(() => {
         setShowSuccess(false);
-        router.push('/upload'); // Redirection vers la liste des activités
+        router.push('/upload'); 
       }, 2000);
     } catch (err) {
       setError("Impossible de téléverser le fichier. Vérifiez votre connexion.");
@@ -74,7 +72,6 @@ export default function UploadActivityPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
-      {/* Header */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Ajouter une activité</h2>
@@ -82,7 +79,6 @@ export default function UploadActivityPage() {
         </div>
       </div>
 
-      {/* Alertes de statut */}
       {showSuccess && (
         <div className="mb-6 flex items-center gap-3 bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 size={18} />
@@ -98,7 +94,6 @@ export default function UploadActivityPage() {
       )}
 
       <div className="space-y-8">
-        {/* Zone d'Upload */}
         <section className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
           <div 
             onDragOver={onDragOver}
@@ -150,7 +145,6 @@ export default function UploadActivityPage() {
             )}
           </div>
 
-          {/* Bouton Action */}
           <div className="mt-8 flex justify-end">
             <button
               onClick={handleUpload}
@@ -177,7 +171,6 @@ export default function UploadActivityPage() {
           </div>
         </section>
 
-        {/* Section Infos */}
         <section className="bg-slate-900 p-8 rounded-3xl text-white overflow-hidden relative">
             <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-6">
@@ -201,7 +194,6 @@ export default function UploadActivityPage() {
                     </div>
                 </div>
             </div>
-            {/* Déco subtile en fond */}
             <div className="absolute -right-10 -bottom-10 opacity-10 text-white">
                 <Upload size={200} />
             </div>

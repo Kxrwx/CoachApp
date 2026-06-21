@@ -9,14 +9,13 @@ import { useAuth } from '@/app/context/AuthContext';
 export default function InviteConsentPage() {
   const { token } = useParams();
   const router = useRouter();
-  const { user } = useAuth(); // On suppose que l'utilisateur est connecté
+  const { user } = useAuth(); 
 
   const [invitation, setInvitation] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // État des consentements
   const [permissions, setPermissions] = useState({
     shareActivities: true,
     sharePhysiology: false, 
@@ -26,8 +25,6 @@ export default function InviteConsentPage() {
   });
 
   useEffect(() => {
-    // Si l'utilisateur n'est pas connecté, on le redirige vers l'auth
-    // avec un paramètre pour revenir ici après connexion
     if (!user) {
       router.push(`/auth?returnTo=/invite/${token}`);
       return;
