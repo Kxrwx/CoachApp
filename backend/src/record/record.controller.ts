@@ -1,3 +1,4 @@
+//src/record/record.controller.ts
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { RecordService } from './record.service';
 import { AuthGuard } from '../auth/auth.guard'; 

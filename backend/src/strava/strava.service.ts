@@ -190,7 +190,6 @@ export class StravaService {
   }
 
 
-  //TODO : retravail le unlink a strava en recalculent proprement Stats
 /**
  *
  *

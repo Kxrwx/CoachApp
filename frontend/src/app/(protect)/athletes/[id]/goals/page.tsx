@@ -12,7 +12,6 @@ import {
   PolarAngleAxis 
 } from "recharts";
 import { api } from '@/lib/api';
-
 // --- TYPES ---
 interface Metric {
   id: string;

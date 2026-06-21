@@ -1,3 +1,4 @@
+//src/pending/pending.service.ts
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PendingActionType, ActionStatus } from '@prisma/client';
@@ -8,6 +9,13 @@ export class PendingService {
 
   constructor(private prisma: PrismaService) {}
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @return {*} => recuperer la liste des actions en attente pour cet utilisateur
+   * @memberof PendingService
+   */
   async getPendingActions(userId: string) {
     return this.prisma.pendingAction.findMany({
       where: { userId, status: ActionStatus.PENDING },
@@ -15,6 +23,15 @@ export class PendingService {
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {string} actionId => l'id de l'action a resoudre
+   * @param {ActionStatus} status => le nouveau statut a appliquer (ACCEPTED, REJECTED, etc.)
+   * @return {*} => met a jour le statut de l'action et declenche la logique metier si l'action est acceptee
+   * @memberof PendingService
+   */
   async resolveAction(userId: string, actionId: string, status: ActionStatus) {
     const action = await this.prisma.pendingAction.findFirst({
       where: { id: actionId, userId },
@@ -33,6 +50,15 @@ export class PendingService {
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {PendingActionType} type => le type d'action en attente a executer
+   * @param {any} payload => les donnees specifiques liees a l'action
+   * @return {*} => dispatche l'execution vers la methode appropriee selon le type d'action
+   * @memberof PendingService
+   */
   private async executeActionLogic(userId: string, type: PendingActionType, payload: any) {
     switch (type) {
       case PendingActionType.PHYSIOLOGY_UPDATE:
@@ -52,6 +78,14 @@ export class PendingService {
     }
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {any} payload => contient la metrique et la nouvelle valeur a appliquer
+   * @return {*} => met a jour ou cree l'entree de physiologie pour l'utilisateur
+   * @memberof PendingService
+   */
   private async handlePhysiologyUpdate(userId: string, payload: any) {
     const { metric, newValue } = payload; 
     
@@ -68,6 +102,14 @@ export class PendingService {
     this.logger.log(`[Physio Update] ${metric} mis à jour à ${newValue} pour l'user ${userId}`);
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {any} payload => contient les details de la seance d'entrainement proposee
+   * @return {*} => cree un nouvel entrainement planifie dans l'agenda de l'utilisateur
+   * @memberof PendingService
+   */
   private async handleTrainingProposal(userId: string, payload: any) {
     const { 
       title, 
@@ -91,7 +133,7 @@ export class PendingService {
         userId,
         title,
         description: description || null,
-        type: activityType,                 
+        type: activityType,                
         startDate: new Date(scheduledDate), 
         startTime: startTime || null,
         duration: duration ? parseInt(duration) : null,
@@ -104,43 +146,50 @@ export class PendingService {
     this.logger.log(`[Training Proposal] Séance '${title}' acceptée et planifiée pour l'user ${userId} (par le coach ${coachId})`);
   }
 
-private async handleGoalProposal(userId: string, payload: any) {
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {any} payload => contient les details de l'objectif propose
+   * @return {*} => cree un nouvel objectif actif (et ses cibles) pour l'utilisateur
+   * @memberof PendingService
+   */
+  private async handleGoalProposal(userId: string, payload: any) {
+    const { 
+      name, 
+      type, 
+      startDate, 
+      endDate, 
+      targets, 
+      coachId 
+    } = payload;
 
-  const { 
-    name, 
-    type, 
-    startDate, 
-    endDate, 
-    targets, 
-    coachId 
-  } = payload;
+    const goalName = name || payload.title;
+    const goalEndDate = endDate || payload.targetDate;
+    const goalType = type || 'COACH_PROPOSAL';
+    const goalStartDate = startDate ? new Date(startDate) : new Date();
 
-  const goalName = name || payload.title;
-  const goalEndDate = endDate || payload.targetDate;
-  const goalType = type || 'COACH_PROPOSAL';
-  const goalStartDate = startDate ? new Date(startDate) : new Date();
+    if (!goalName || !goalEndDate) {
+      throw new BadRequestException("Payload invalide pour GOAL_PROPOSAL (Le nom et la date de fin sont requis)");
+    }
 
-  if (!goalName || !goalEndDate) {
-    throw new BadRequestException("Payload invalide pour GOAL_PROPOSAL (Le nom et la date de fin sont requis)");
-  }
-
-  await this.prisma.goal.create({
-    data: {
-      userId,
-      name: goalName,
-      type: goalType,
-      startDate: goalStartDate,
-      endDate: new Date(goalEndDate),
-      isActive: true, 
-      targets: {
-        create: targets?.map((t: any) => ({
-          metricId: t.metricId,
-          targetValue: typeof t.targetValue === 'string' ? parseFloat(t.targetValue) : t.targetValue,
-        })) || [],
+    await this.prisma.goal.create({
+      data: {
+        userId,
+        name: goalName,
+        type: goalType,
+        startDate: goalStartDate,
+        endDate: new Date(goalEndDate),
+        isActive: true, 
+        targets: {
+          create: targets?.map((t: any) => ({
+            metricId: t.metricId,
+            targetValue: typeof t.targetValue === 'string' ? parseFloat(t.targetValue) : t.targetValue,
+          })) || [],
+        },
       },
-    },
-  });
+    });
 
-  this.logger.log(`[Goal Proposal] Objectif '${goalName}' accepté et créé dans la table Goal pour l'user ${userId} (par le coach ${coachId})`);
-}
+    this.logger.log(`[Goal Proposal] Objectif '${goalName}' accepté et créé dans la table Goal pour l'user ${userId} (par le coach ${coachId})`);
+  }
 }

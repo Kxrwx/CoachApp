@@ -18,10 +18,8 @@ export class StatsService {
     try {
       this.logger.log(`[Stats] Recalcul des stats à partir des uploads uniquement pour ${userId}`);
 
-      // Supprimer toutes les stats existantes
       await this.prisma.stats.deleteMany({ where: { userId } });
 
-      // Récupérer toutes les activités uploadées
       const uploadActivities = await this.prisma.activity.findMany({
         where: {
           userId,

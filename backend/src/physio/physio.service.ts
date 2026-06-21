@@ -1,10 +1,9 @@
+//src/physio/physio.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../r2/r2.service';
 
 const FitParser = require('fit-file-parser').default;
-
-
 
 @Injectable()
 export class UserPhysiologyService {
@@ -13,12 +12,27 @@ export class UserPhysiologyService {
     private r2Service: R2Service,
   ) {}
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @return {*} => retourne les donnees physiologiques actuelles de l'utilisateur
+   * @memberof UserPhysiologyService
+   */
   async getPhysiology(userId: string) {
     return this.prisma.userPhysiology.findUnique({
       where: { userId },
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {any} data => les nouvelles donnees physiologiques a enregistrer
+   * @return {*} => met a jour ou cree les donnees physiologiques de l'utilisateur
+   * @memberof UserPhysiologyService
+   */
   async upsertPhysiology(userId: string, data: any) {
     return this.prisma.userPhysiology.upsert({
       where: { userId },
@@ -42,6 +56,13 @@ export class UserPhysiologyService {
     });
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @return {*} => recalcule et met a jour les metriques (FC max, FTP, etc.) en se basant sur les fichiers FIT et les stats de performance
+   * @memberof UserPhysiologyService
+   */
   async calculateMetrics(userId: string) {
     const currentPhysio = await this.prisma.userPhysiology.findUnique({
       where: { userId },
@@ -71,12 +92,18 @@ export class UserPhysiologyService {
       try {
         const buffer = await this.r2Service.getFile(uploadFile.r2Key);
         const fitData = await this.parseFitBuffer(buffer);
+        
         if (fitData?.stats?.max_heart_rate) {
           const activityMaxHr = Math.round(fitData.stats.max_heart_rate);
           if (activityMaxHr > (calcMaxHr || 0)) calcMaxHr = activityMaxHr;
         }
-        if (fitData?.stats?.max_power && !calcFtp) calcFtp = fitData.stats.max_power;
-      } catch (error) { continue; }
+        
+        if (fitData?.stats?.max_power && !calcFtp) {
+          calcFtp = fitData.stats.max_power;
+        }
+      } catch (error) { 
+        continue; 
+      }
     }
 
     if (latestPerformanceStats) {
@@ -98,6 +125,15 @@ export class UserPhysiologyService {
     return this.upsertPhysiology(userId, physiologyData);
   }
 
+  /**
+   *
+   *
+   * @param {string} userId => l'id de l'utilisateur
+   * @param {number} month => le mois cible (1-12)
+   * @param {number} year => l'annee cible
+   * @return {*} => recupere les statistiques de performance mensuelles de l'utilisateur
+   * @memberof UserPhysiologyService
+   */
   async getPerformanceStatsForMonth(userId: string, month: number, year: number) {
     const periodStart = new Date(Date.UTC(year, month - 1, 1));
     return this.prisma.performanceStats.findUnique({
@@ -111,15 +147,25 @@ export class UserPhysiologyService {
     });
   }
 
+  /**
+   *
+   *
+   * @param {Buffer} buffer => le buffer du fichier FIT a analyser
+   * @return {*} => parse le fichier et extrait les statistiques maximales (FC max, puissance max)
+   * @memberof UserPhysiologyService
+   */
   private async parseFitBuffer(buffer: Buffer): Promise<any> {
     return new Promise((resolve, reject) => {
       const fitParser = new FitParser({ force: true, speedUnit: 'm/s', lengthUnit: 'm', mode: 'list' });
       fitParser.parse(buffer, (error: any, data: any) => {
         if (error) return reject(error);
+        
         const session = data.sessions?.[0] || {};
         const records = data.records || [];
+        
         const maxHeartRate = Math.max(session.max_heart_rate || 0, ...records.map((r: any) => r.heart_rate || 0));
         const maxPower = Math.max(session.max_power || 0, ...records.map((r: any) => r.power || 0));
+        
         resolve({ stats: { max_heart_rate: maxHeartRate || null, max_power: maxPower || null } });
       });
     });

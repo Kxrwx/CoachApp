@@ -1,8 +1,8 @@
+//src/coaching/coaching.controller.ts
 import { Controller, Post, Get, Body, Param, Req, UseGuards, Delete, Patch } from '@nestjs/common';
 import { CoachingService } from './coaching.service';
 import { AuthGuard } from '../auth/auth.guard';
 
-// 1. Définir une interface pour éviter de répéter le type
 interface PermissionsDto {
   shareActivities: boolean;
   sharePhysiology: boolean;

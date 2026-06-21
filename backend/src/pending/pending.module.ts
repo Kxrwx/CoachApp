@@ -1,3 +1,4 @@
+//src/pending/pending.module.ts
 import { Module } from '@nestjs/common';
 import { PendingController } from './pending.controller';
 import { PendingService } from './pending.service';

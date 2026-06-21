@@ -50,9 +50,6 @@ export interface UpdatePlannedWorkoutInput {
 export class PlanningController {
   constructor(private planningService: PlanningService) {}
 
-  /**
-   * Crée un nouvel entraînement planifié
-   */
   @Post('workouts')
   async createWorkout(
     @Request() req: any,
@@ -64,9 +61,6 @@ export class PlanningController {
     );
   }
 
-  /**
-   * Récupère les événements du calendrier
-   */
   @Get('calendar')
   async getCalendarEvents(
     @Request() req: any,
@@ -77,9 +71,6 @@ export class PlanningController {
     );
   }
 
-  /**
-   * Récupère tous les entraînements planifiés d'un utilisateur
-   */
   @Get('workouts')
   async getAllWorkouts(@Request() req: any) {
     return this.planningService.getCalendarEvents(
@@ -87,9 +78,6 @@ export class PlanningController {
     );
   }
 
-  /**
-   * Met à jour un entraînement planifié
-   */
   @Put('workouts/:id')
   async updateWorkout(
     @Request() req: any,
@@ -103,9 +91,6 @@ export class PlanningController {
     );
   }
 
-  /**
-   * Change le statut d'un entraînement
-   */
   @Put('workouts/:id/status')
   async updateWorkoutStatus(
     @Request() req: any,
@@ -119,9 +104,6 @@ export class PlanningController {
     );
   }
 
-  /**
-   * Supprime un entraînement planifié
-   */
   @Delete('workouts/:id')
   async deleteWorkout(
     @Request() req: any,

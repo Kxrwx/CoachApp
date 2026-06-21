@@ -1,4 +1,4 @@
-// src/pending-actions/pending.controller.ts
+// src/pending/pending.controller.ts
 import { 
   Controller, 
   Get, 
