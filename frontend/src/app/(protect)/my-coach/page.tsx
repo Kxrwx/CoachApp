@@ -1,5 +1,5 @@
 "use client";
-
+//TODO : Ajouter un loading
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';

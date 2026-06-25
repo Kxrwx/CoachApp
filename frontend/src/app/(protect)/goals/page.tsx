@@ -1,5 +1,5 @@
 "use client";
-
+//TODO : Ajout d'un loading propre
 
 import React, { useState, useEffect } from "react";
 import {

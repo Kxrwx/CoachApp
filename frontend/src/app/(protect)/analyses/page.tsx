@@ -1,4 +1,7 @@
 "use client";
+//TODO : revoir le loading 
+// TODO : revoir l'affichage des statistique a 0 
+
 
 import React, { useState, useEffect } from "react"; 
 import { api } from "@/lib/api";

@@ -118,7 +118,6 @@ export class StravaService {
     }
   }
 
-  //TODO : retravail le link a strava en recalculent proprement Stats
   /**
    *
    *

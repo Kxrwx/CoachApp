@@ -24,7 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) {
     return null;
   }
-
+//TODO : Ajout d'un loading
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans relative">
       <Header />
